@@ -20,7 +20,27 @@ validate_parquet_path <- function(path, mode = "read") {
   }
 }
 
+# Validate the max_coord_bits argument
+#
+# Ensures coordinates can be safely packed into a 32-bit integer by
+# limiting the total number of interleaved bits to 30.
+#' @noRd
+validate_max_coord_bits <- function(max_coord_bits) {
+  if (!is.numeric(max_coord_bits) || length(max_coord_bits) != 1 || is.na(max_coord_bits)) {
+    stop("max_coord_bits must be a single non-NA numeric value")
+  }
+  max_coord_bits <- as.integer(max_coord_bits)
+  if (max_coord_bits <= 0) {
+    stop("max_coord_bits must be positive")
+  }
+  if (3L * max_coord_bits > 30L) {
+    stop("max_coord_bits too large; 3 * max_coord_bits must be <= 30")
+  }
+  max_coord_bits
+}
+
 validate_coordinate_range <- function(range, name, max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   if (length(range) == 1) {
     range <- c(range, range)
   }

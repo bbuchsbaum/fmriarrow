@@ -17,6 +17,7 @@
 #'   computed Morton codes.
 #' @export
 compute_zindex <- function(x, y, z, max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   if (length(x) != length(y) || length(y) != length(z)) {
     stop("x, y and z must have the same length")
   }
