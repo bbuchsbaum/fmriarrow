@@ -14,6 +14,11 @@ test_that("small cuboid", {
   expect_equal(zr$max_zindex, 3L)
 })
 
+test_that("invalid max_coord_bits triggers errors", {
+  expect_error(coords_to_zindex_range(0, 0, 0, max_coord_bits = 0))
+  expect_error(coords_to_zindex_range(0, 0, 0, max_coord_bits = 2.5))
+  expect_error(coords_to_zindex_range(0, 0, 0, max_coord_bits = c(10, 11)))
+})
 
 test_that("new implementation matches expand.grid approach", {
   x_range <- c(1L, 3L)
@@ -47,5 +52,4 @@ test_that("invalid ranges trigger errors", {
 
 test_that("oversized max_coord_bits fails", {
   expect_error(coords_to_zindex_range(0, 0, 0, max_coord_bits = 11))
-
 })

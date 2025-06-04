@@ -38,3 +38,9 @@ test_that("cpp helper matches R implementation", {
   z <- sample(0:3, 10, replace = TRUE)
   expect_equal(compute_zindex_cpp(x, y, z), compute_zindex(x, y, z))
 })
+
+test_that("invalid max_coord_bits triggers errors", {
+  expect_error(compute_zindex(0, 0, 0, max_coord_bits = 0))
+  expect_error(compute_zindex(0, 0, 0, max_coord_bits = 1.5))
+  expect_error(compute_zindex(0, 0, 0, max_coord_bits = c(10, 11)))
+})
