@@ -19,9 +19,13 @@ Imports:
     dplyr (>= 1.0.0),
     neuroim2 (>= 0.1.0),
     digest,
-    jsonlite
+    jsonlite,
+    Rcpp (>= 1.0.5)
+LinkingTo:
+    Rcpp
 Suggests:
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    microbenchmark
 VignetteBuilder: knitr

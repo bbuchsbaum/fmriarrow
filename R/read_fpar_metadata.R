@@ -42,9 +42,16 @@ read_fpar_metadata <- function(parquet_path) {
 
       if (length(schema_metadata) > 0) {
         if (!is.null(schema_metadata$spatial_metadata)) {
-          parsed_metadata <- jsonlite::fromJSON(schema_metadata$spatial_metadata)
+          spatial_md <- schema_metadata$spatial_metadata
+          if (is.raw(spatial_md)) {
+            spatial_md <- rawToChar(spatial_md)
+          }
+          parsed_metadata <- jsonlite::fromJSON(spatial_md)
         } else {
           parsed_metadata <- lapply(schema_metadata, function(x) {
+            if (is.raw(x)) {
+              x <- rawToChar(x)
+            }
             tryCatch({
               val <- jsonlite::fromJSON(x)
               if (is.character(val) && length(val) == 1) val else val

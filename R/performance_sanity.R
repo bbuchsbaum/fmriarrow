@@ -22,7 +22,13 @@ performance_sanity_check <- function(neuro_vec_obj,
     stop("neuro_vec_obj must inherit from 'NeuroVec'")
   }
 
+  # Validate coordinate ranges before using them
+  x_range <- validate_coordinate_range(x_range, "x_range")
+  y_range <- validate_coordinate_range(y_range, "y_range")
+  z_range <- validate_coordinate_range(z_range, "z_range")
+
   tmp <- tempfile(fileext = ".parquet")
+  on.exit(unlink(tmp), add = TRUE)
 
   t_conv <- system.time(
     neurovec_to_fpar(neuro_vec_obj, tmp, "perfsubj")
