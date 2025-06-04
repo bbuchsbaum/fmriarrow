@@ -14,31 +14,9 @@
 #' @export
 coords_to_zindex_range <- function(x_range, y_range, z_range,
                                    max_coord_bits = 10) {
-  expand_range <- function(r) {
-    if (length(r) == 1) r <- c(r, r)
-    if (length(r) != 2) {
-      stop("ranges must be length 1 or 2")
-    }
-    if (any(is.na(r))) {
-      stop("ranges cannot contain NA")
-    }
-    r <- as.integer(r)
-    if (r[1] > r[2]) {
-      stop("range minimum must be <= maximum")
-    }
-    if (any(r < 0)) {
-      stop("coordinates must be non-negative")
-    }
-    limit <- bitwShiftL(1L, max_coord_bits)
-    if (any(r >= limit)) {
-      stop("coordinates exceed range defined by max_coord_bits")
-    }
-    r
-  }
-
-  x_range <- expand_range(x_range)
-  y_range <- expand_range(y_range)
-  z_range <- expand_range(z_range)
+  x_range <- validate_coordinate_range(x_range, "x_range", max_coord_bits)
+  y_range <- validate_coordinate_range(y_range, "y_range", max_coord_bits)
+  z_range <- validate_coordinate_range(z_range, "z_range", max_coord_bits)
 
   corners <- expand.grid(
     x = c(x_range[1], x_range[2]),

@@ -7,12 +7,7 @@
 #' @return A list with metadata fields.
 #' @export
 read_fpar_metadata <- function(parquet_path) {
-  if (!is.character(parquet_path) || length(parquet_path) != 1) {
-    stop("parquet_path must be a single string")
-  }
-  if (!file.exists(parquet_path)) {
-    stop("File does not exist: ", parquet_path)
-  }
+  validate_parquet_path(parquet_path)
 
   tbl <- arrow::read_parquet(parquet_path, as_data_frame = FALSE,
                              col_select = character(0))
