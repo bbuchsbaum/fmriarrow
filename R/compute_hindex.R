@@ -1,8 +1,11 @@
 #' Compute 3D Hilbert index
 #'
-#' This initial implementation approximates a 3D Hilbert curve
-#' by interleaving Gray-coded coordinate bits. Coordinates must
-#' be non-negative integers and less than 2^`max_coord_bits`.
+#' This function does not implement a true Hilbert curve.
+#' Instead it interleaves Gray-coded coordinate bits to
+#' produce a Morton order (also called Z-order). The result
+#' is therefore a Gray-coded Morton index rather than a
+#' strict Hilbert curve mapping. Coordinates must be
+#' non-negative integers and less than 2^`max_coord_bits`.
 #'
 #' @param x,y,z Integer vectors of equal length with 0-based
 #'   voxel coordinates.
