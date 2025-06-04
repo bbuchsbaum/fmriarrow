@@ -16,52 +16,56 @@
 read_fpar_metadata <- function(parquet_path) {
   validate_parquet_path(parquet_path)
 
-  # First try to read embedded metadata from Parquet schema
+  if (!grepl("\\.(fpar|parquet)$", parquet_path)) {
+    warning("File extension should be .fpar or .parquet")
+  }
+
+  parsed_metadata <- list()
+
+  # Attempt to read metadata embedded in the Parquet schema
   tryCatch({
     tbl <- arrow::read_parquet(parquet_path, as_data_frame = FALSE,
                                col_select = character(0))
     schema_metadata <- tbl$schema$metadata
-    
-    if (!is.null(schema_metadata) && !is.null(schema_metadata$spatial_metadata)) {
-      parsed_metadata <- jsonlite::fromJSON(schema_metadata$spatial_metadata)
-      
-      # Validate metadata schema version if present
-      if (!is.null(parsed_metadata$metadata_schema_version)) {
-        version <- parsed_metadata$metadata_schema_version
-        if (!version %in% c("0.1.0", "2.0.0")) {
-          warning("Unknown metadata schema version: ", version, 
-                  ". Results may not be compatible.")
-        }
+
+    if (length(schema_metadata) > 0) {
+      if (!is.null(schema_metadata$spatial_metadata)) {
+        parsed_metadata <- jsonlite::fromJSON(schema_metadata$spatial_metadata)
+      } else {
+        parsed_metadata <- lapply(schema_metadata, function(x) {
+          tryCatch({
+            val <- jsonlite::fromJSON(x)
+            if (is.character(val) && length(val) == 1) val else val
+          }, error = function(e) x)
+        })
       }
-      
-      return(parsed_metadata)
     }
   }, error = function(e) {
     warning("Failed to read embedded metadata: ", e$message)
   })
 
-  # Fallback: try to read from separate metadata file
-  metadata_path <- paste0(tools::file_path_sans_ext(parquet_path), "_metadata.json")
-  if (file.exists(metadata_path)) {
-    tryCatch({
-      metadata_json <- readLines(metadata_path, warn = FALSE)
-      parsed_metadata <- jsonlite::fromJSON(metadata_json)
-      
-      # Validate metadata schema version if present
-      if (!is.null(parsed_metadata$metadata_schema_version)) {
-        version <- parsed_metadata$metadata_schema_version
-        if (!version %in% c("0.1.0", "2.0.0")) {
-          warning("Unknown metadata schema version: ", version, 
-                  ". Results may not be compatible.")
-        }
-      }
-      
-      return(parsed_metadata)
-    }, error = function(e) {
-      warning("Failed to read metadata file: ", e$message)
-    })
+  # Fallback to sidecar JSON file if necessary
+  if (length(parsed_metadata) == 0) {
+    metadata_path <- paste0(tools::file_path_sans_ext(parquet_path), "_metadata.json")
+    if (file.exists(metadata_path)) {
+      tryCatch({
+        metadata_json <- readLines(metadata_path, warn = FALSE)
+        parsed_metadata <- jsonlite::fromJSON(metadata_json)
+      }, error = function(e) {
+        warning("Failed to read metadata file: ", e$message)
+      })
+    }
   }
 
-  warning("No metadata found in Parquet file or associated metadata file")
-  list()
+  if (length(parsed_metadata) == 0) {
+    warning("No metadata found in Parquet file or associated metadata file")
+  } else if (!is.null(parsed_metadata$metadata_schema_version)) {
+    version <- parsed_metadata$metadata_schema_version
+    if (!version %in% c("0.1.0", "2.0.0")) {
+      warning("Unknown metadata schema version: ", version,
+              ". Results may not be compatible.")
+    }
+  }
+
+  parsed_metadata
 }
