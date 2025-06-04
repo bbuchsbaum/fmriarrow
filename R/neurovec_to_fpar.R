@@ -69,32 +69,11 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     stop("NeuroVec must have at least 4 dimensions (3 spatial + 1 temporal)")
   }
 
-  # Extract metadata from NeuroSpace (CORE-007)
-  spacing_vec <- neuroim2::spacing(space_obj)
-  affine_matrix <- neuroim2::trans(space_obj)
-  
-  # Create comprehensive metadata structure per Sprint 2 specification
-  metadata <- list(
-    metadata_schema_version = "2.0.0",
-    source_info = list(
-      original_file = deparse(substitute(neuro_vec_obj)),
-      neuroim2_space_hash = digest::digest(space_obj, algo = "sha256")
-    ),
-    spatial_properties = list(
-      original_dimensions = as.integer(dims),
-      voxel_size_mm = as.numeric(spacing_vec[1:min(3, length(spacing_vec))]),
-      affine_matrix = as.matrix(affine_matrix),
-      reference_space = reference_space %||% "unknown",
-      coordinate_convention = "0-based RAS"
-    ),
-    acquisition_properties = list(
-      repetition_time_s = repetition_time %||% NA_real_,
-      timepoint_count = as.integer(neuro_vec_dims[4])
-    ),
-    data_integrity = list(
-      voxel_count = as.integer(prod(dims[1:3])),
-      bold_value_range = c(NA_real_, NA_real_)  # Will be computed during iteration
-    )
+  # Construct metadata structure per Sprint 2 specification
+  metadata <- extract_neurospace_metadata(
+    neuro_vec_obj,
+    reference_space = reference_space,
+    repetition_time = repetition_time
   )
 
   # Initialize voxel iteration
