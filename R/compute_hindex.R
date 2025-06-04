@@ -12,9 +12,13 @@
 #'   each coordinate (default 10). Must be a positive integer between
 #'   1 and 20.
 #'
-#' @return Integer vector of Hilbert indices.
+#' @param as_character Logical; if TRUE return indices as character strings to
+#'   avoid precision loss for large values.
+#'
+#' @return Hilbert indices as either numeric or character vector depending on
+#'   `as_character`.
 #' @export
-compute_hindex <- function(x, y, z, max_coord_bits = 10) {
+compute_hindex <- function(x, y, z, max_coord_bits = 10, as_character = FALSE) {
   max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   if (max_coord_bits > 20L) {
     stop("max_coord_bits must be between 1 and 20")
@@ -35,6 +39,6 @@ compute_hindex <- function(x, y, z, max_coord_bits = 10) {
   x <- as.integer(x)
   y <- as.integer(y)
   z <- as.integer(z)
-  compute_hindex_cpp(x, y, z, max_coord_bits)
+  compute_hindex_cpp(x, y, z, max_coord_bits, as_character)
 }
 
