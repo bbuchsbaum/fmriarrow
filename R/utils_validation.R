@@ -41,6 +41,7 @@ validate_max_coord_bits <- function(max_coord_bits) {
 }
 
 validate_coordinate_range <- function(range, name, max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   if (length(range) == 1) {
     range <- c(range, range)
   }

@@ -20,6 +20,7 @@
 read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
                                  columns = NULL, exact = TRUE,
                                  max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   validate_parquet_path(parquet_path)
 
   # Validate and normalize coordinate ranges
