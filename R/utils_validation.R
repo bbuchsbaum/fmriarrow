@@ -63,6 +63,34 @@ validate_zindex_range <- function(min_zindex, max_zindex) {
   invisible(TRUE)
 }
 
+# Normalize a coordinate range to length 2
+#
+# Helper for [coords_to_zindex_range()]. Accepts either a single
+# coordinate or a two element vector and returns an integer vector of
+# length 2.
+#' @noRd
+normalize_coord_range <- function(range) {
+  if (length(range) == 1) {
+    range <- c(range, range)
+  }
+  if (length(range) != 2) {
+    stop("coordinate range must be length 1 or 2")
+  }
+  as.integer(range)
+}
+
+# Validate that coordinates lie within 0..max_coord
+#
+# Used by [coords_to_zindex_range()] to guard against out-of-bounds
+# queries.
+#' @noRd
+validate_coord_bounds <- function(ranges, max_coord) {
+  if (any(ranges < 0L) || any(ranges > max_coord)) {
+    stop("coordinate values exceed bounds [0, ", max_coord, "]")
+  }
+  invisible(TRUE)
+}
+
 #' Null-coalescing operator
 #' @param x First value
 #' @param y Second value (returned if x is NULL)

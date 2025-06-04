@@ -14,16 +14,27 @@
 #' @export
 coords_to_zindex_range <- function(x_range, y_range, z_range,
                                    max_coord_bits = 10) {
-  x_range <- validate_coordinate_range(x_range, "x_range", max_coord_bits)
-  y_range <- validate_coordinate_range(y_range, "y_range", max_coord_bits)
-  z_range <- validate_coordinate_range(z_range, "z_range", max_coord_bits)
+  # Normalize coordinate ranges to length 2
+  x_range <- normalize_coord_range(x_range)
+  y_range <- normalize_coord_range(y_range)
+  z_range <- normalize_coord_range(z_range)
+
+  # Ensure coordinates fall within allowed bounds
+  max_coord <- (2^max_coord_bits) - 1L
+  validate_coord_bounds(c(x_range, y_range, z_range), max_coord)
 
   corners <- expand.grid(
     x = c(x_range[1], x_range[2]),
     y = c(y_range[1], y_range[2]),
     z = c(z_range[1], z_range[2])
   )
-  zindices <- compute_zindex(corners$x, corners$y, corners$z,
-                             max_coord_bits = max_coord_bits)
+
+  zindices <- compute_zindex(
+    corners$x,
+    corners$y,
+    corners$z,
+    max_coord_bits = max_coord_bits
+  )
+
   list(min_zindex = min(zindices), max_zindex = max(zindices))
 }

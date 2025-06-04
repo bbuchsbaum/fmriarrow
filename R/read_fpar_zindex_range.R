@@ -26,9 +26,10 @@ read_fpar_zindex_range <- function(parquet_path, min_zindex, max_zindex, columns
     columns <- schema_cols
   }
 
-  query <- ds |>
+  result <- ds |>
     dplyr::filter(zindex >= min_zindex & zindex <= max_zindex) |>
-    dplyr::select(dplyr::all_of(columns))
+    dplyr::select(dplyr::all_of(columns)) |>
+    dplyr::compute()
 
-  as.data.frame(dplyr::collect(query, as_data_frame = FALSE))
+  result
 }
