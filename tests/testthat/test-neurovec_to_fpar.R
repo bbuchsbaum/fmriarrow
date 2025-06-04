@@ -55,6 +55,18 @@ test_that("arrow table is sorted by zindex", {
   expect_equal(df$zindex, sort(df$zindex))
 })
 
+test_that("arrow table has expected columns", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  nv <- neuroim2::emptyNeuroVec(c(1,1,1,1))
+  res <- neurovec_to_fpar(nv, tempfile(), "sub01")
+  tbl <- res$arrow_table
+  expected <- c("subject_id", "session_id", "task_id", "run_id",
+                "x", "y", "z", "zindex", "bold")
+  expect_equal(sort(tbl$schema$names), sort(expected))
+})
+
 test_that("parquet file written and sorted", {
   skip_if_not_installed("neuroim2")
   skip_if_not_installed("arrow")
