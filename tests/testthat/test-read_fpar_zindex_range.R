@@ -15,14 +15,16 @@ neurovec_to_fpar(nv, tmp, "sub01")
 
 test_that("basic zindex range query", {
   result <- read_fpar_zindex_range(tmp, 0, 1)
-  expect_equal(nrow(result), 2)
-  expect_true(all(result$zindex %in% c(0, 1)))
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 2)
+  expect_true(all(df$zindex %in% c(0, 1)))
 })
 
 test_that("single zindex query", {
   result <- read_fpar_zindex_range(tmp, 2, 2)
-  expect_equal(nrow(result), 1)
-  expect_equal(result$zindex[1], 2)
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 1)
+  expect_equal(df$zindex[1], 2)
 })
 
 test_that("invalid column names trigger error", {
@@ -31,7 +33,8 @@ test_that("invalid column names trigger error", {
 
 test_that("empty range returns empty result", {
   result <- read_fpar_zindex_range(tmp, 100, 200)
-  expect_equal(nrow(result), 0)
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 0)
 })
 
 test_that("invalid zindex range fails", {
