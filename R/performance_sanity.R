@@ -23,6 +23,7 @@ performance_sanity_check <- function(neuro_vec_obj,
   }
 
   tmp <- tempfile(fileext = ".parquet")
+  on.exit(unlink(tmp), add = TRUE)
 
   t_conv <- system.time(
     neurovec_to_fpar(neuro_vec_obj, tmp, "perfsubj")
