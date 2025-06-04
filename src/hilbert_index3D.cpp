@@ -1,17 +1,40 @@
 #include <Rcpp.h>
+#include <cstdlib>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 using namespace Rcpp;
 
 // Helper: rotate and flip a quadrant appropriately
-inline void rot(int int_n, int &x, int &y, int &z, int rx, int ry, int rz) {
+// Rotate and flip a quadrant according to canonical 3D Hilbert rules
+inline void rot(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
   if (rz == 0) {
     if (ry == 0) {
       if (rx == 1) {
-        x = int_n - 1 - x;
-        y = int_n - 1 - y;
+        x = n - 1 - x;
+        y = n - 1 - y;
       }
       std::swap(x, y);
+    } else {
+      if (rx == 0) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
     }
     std::swap(y, z);
+  } else {
+    if (ry == 1) {
+      if (rx == 1) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+      std::swap(x, y);
+    } else {
+      if (rx == 0) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+    }
   }
 }
 
@@ -47,13 +70,14 @@ void hilbert3D_inverse(uint64_t index, int nbits, int &x, int &y, int &z) {
 }
 
 // [[Rcpp::export]]
-NumericVector compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z, int nbits) {
+SEXP compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z,
+                        int nbits, bool as_character = false) {
   int n = x.size();
   if (y.size() != n || z.size() != n) {
     stop("x, y, and z must have the same length");
   }
-  if (nbits <= 0 || nbits > 20) {
-    stop("nbits must be between 1 and 20 (for uint64_t output)");
+  if (nbits <= 0 || nbits > 21) {
+    stop("nbits must be between 1 and 21");
   }
   int limit = 1 << nbits;
   for (int i = 0; i < n; ++i) {
@@ -64,20 +88,38 @@ NumericVector compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector
       stop("coordinates exceed range defined by nbits");
     }
   }
-  NumericVector out(n);
-  for (int i = 0; i < n; ++i) {
-    out[i] = static_cast<double>(hilbert3D(x[i], y[i], z[i], nbits));
+
+  if (as_character) {
+    CharacterVector out(n);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < n; ++i) {
+      uint64_t idx = hilbert3D(x[i], y[i], z[i], nbits);
+      out[i] = std::to_string(idx);
+    }
+    return out;
+  } else {
+    NumericVector out(n);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < n; ++i) {
+      out[i] = static_cast<double>(hilbert3D(x[i], y[i], z[i], nbits));
+    }
+    return out;
   }
-  return out;
 }
 
 // [[Rcpp::export]]
-DataFrame compute_hindex_cpp_inverse(NumericVector index, int nbits) {
+DataFrame compute_hindex_cpp_inverse(CharacterVector index, int nbits) {
   int n = index.size();
   IntegerVector x(n), y(n), z(n);
   for (int i = 0; i < n; ++i) {
+    std::string s = Rcpp::as<std::string>(index[i]);
+    uint64_t idx = std::strtoull(s.c_str(), nullptr, 10);
     int xi, yi, zi;
-    hilbert3D_inverse(static_cast<uint64_t>(index[i]), nbits, xi, yi, zi);
+    hilbert3D_inverse(idx, nbits, xi, yi, zi);
     x[i] = xi;
     y[i] = yi;
     z[i] = zi;
