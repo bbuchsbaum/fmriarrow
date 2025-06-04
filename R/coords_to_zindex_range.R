@@ -14,6 +14,7 @@
 #' @export
 coords_to_zindex_range <- function(x_range, y_range, z_range,
                                    max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   # Normalize coordinate ranges to length 2
   x_range <- normalize_coord_range(x_range)
   y_range <- normalize_coord_range(y_range)
