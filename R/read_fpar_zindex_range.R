@@ -8,10 +8,15 @@
 #' @param max_zindex Maximum Z-index (inclusive).
 #' @param columns Optional character vector of columns to return. If `NULL`, all
 #'   columns are returned.
+#' @param compute If `TRUE` (default), the query is materialized with
+#'   `dplyr::compute()` before returning. Set to `FALSE` to return a lazy
+#'   query suitable for further filtering.
 #'
-#' @return An Arrow Table containing the filtered rows.
+#' @return An Arrow Table when `compute = TRUE` or a lazy query when
+#'   `compute = FALSE`.
 #' @export
-read_fpar_zindex_range <- function(parquet_path, min_zindex, max_zindex, columns = NULL) {
+read_fpar_zindex_range <- function(parquet_path, min_zindex, max_zindex,
+                                   columns = NULL, compute = TRUE) {
   validate_parquet_path(parquet_path)
   validate_zindex_range(min_zindex, max_zindex)
 
@@ -26,10 +31,13 @@ read_fpar_zindex_range <- function(parquet_path, min_zindex, max_zindex, columns
     columns <- schema_cols
   }
 
-  result <- ds |>
+  query <- ds |>
     dplyr::filter(zindex >= min_zindex & zindex <= max_zindex) |>
-    dplyr::select(dplyr::all_of(columns)) |>
-    dplyr::compute()
+    dplyr::select(dplyr::all_of(columns))
 
-  result
+  if (isTRUE(compute)) {
+    query <- dplyr::compute(query)
+  }
+
+  query
 }

@@ -31,30 +31,42 @@ read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
   # Convert coordinate ranges to Z-index range
   zindex_range <- coords_to_zindex_range(x_range, y_range, z_range, max_coord_bits)
 
+  ds <- arrow::open_dataset(parquet_path)
+  schema_cols <- ds$schema$names
+  if (!is.null(columns)) {
+    if (!all(columns %in% schema_cols)) {
+      missing <- setdiff(columns, schema_cols)
+      stop("Invalid column names: ", paste(missing, collapse = ", "))
+    }
+  } else {
+    columns <- schema_cols
+  }
+
   query_cols <- columns
   if (exact) {
     query_cols <- unique(c(query_cols, "x", "y", "z"))
   }
 
-  data <- read_fpar_zindex_range(
-    parquet_path,
-    zindex_range$min_zindex,
-    zindex_range$max_zindex,
-    query_cols
-  )
+  query <- ds |>
+    dplyr::filter(zindex >= zindex_range$min_zindex &
+                    zindex <= zindex_range$max_zindex)
 
   if (exact) {
-    data <- data |>
+    query <- query |>
       dplyr::filter(
         x >= x_range[1] & x <= x_range[2] &
           y >= y_range[1] & y <= y_range[2] &
           z >= z_range[1] & z <= z_range[2]
       )
-
-    if (!is.null(columns)) {
-      data <- data |> dplyr::select(dplyr::all_of(columns))
-    }
   }
 
-  data
+  query <- query |> dplyr::select(dplyr::all_of(query_cols))
+
+  result <- dplyr::collect(query)
+
+  if (exact && !is.null(columns)) {
+    result <- result |> dplyr::select(dplyr::all_of(columns))
+  }
+
+  result
 }
