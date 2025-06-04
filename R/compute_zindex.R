@@ -41,6 +41,9 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
   x <- as.integer(x)
   y <- as.integer(y)
   z <- as.integer(z)
+
+  compute_zindex_cpp(x, y, z, max_coord_bits)
+
   res <- integer(length(x))
   for (i in 0:(max_coord_bits - 1L)) {
     mask <- bitwShiftL(1L, i)
@@ -52,4 +55,5 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
     res <- bitwOr(res, bitwShiftL(zi, 3L * i + 2L))
   }
   res
+
 }
