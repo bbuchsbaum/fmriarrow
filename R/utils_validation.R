@@ -3,14 +3,21 @@
 #' These functions are not exported and used internally to validate
 #' common arguments across the package.
 #' @noRd
-validate_parquet_path <- function(path) {
+validate_parquet_path <- function(path, mode = "read") {
   if (!is.character(path) || length(path) != 1) {
     stop("parquet_path must be a single string")
   }
-  if (!file.exists(path)) {
-    stop("File does not exist: ", path)
+  
+  if (mode == "read" && !file.exists(path)) {
+    stop("Parquet file does not exist: ", path)
   }
-  invisible(TRUE)
+  
+  if (mode == "write") {
+    dir_path <- dirname(path)
+    if (!dir.exists(dir_path)) {
+      stop("Directory does not exist: ", dir_path)
+    }
+  }
 }
 
 validate_coordinate_range <- function(range, name, max_coord_bits = 10) {
@@ -48,9 +55,17 @@ validate_zindex_range <- function(min_zindex, max_zindex) {
   if (min_zindex > max_zindex) {
     stop("min_zindex must be less than or equal to max_zindex")
   }
-  limit <- bitwShiftL(1L, 32)
+  # Use safe 32-bit unsigned integer limit: 2^32 - 1 = 4294967295
+  limit <- 4294967295
   if (min_zindex >= limit || max_zindex >= limit) {
     stop("zindex values exceed 32-bit range")
   }
   invisible(TRUE)
+}
+
+#' Null-coalescing operator
+#' @param x First value
+#' @param y Second value (returned if x is NULL)
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
 }

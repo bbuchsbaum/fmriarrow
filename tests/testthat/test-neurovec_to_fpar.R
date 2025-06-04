@@ -8,7 +8,11 @@ test_that("input must be a NeuroVec", {
 
 test_that("scan identifiers validated", {
   skip_if_not_installed("neuroim2")
-  nv <- neuroim2::emptyNeuroVec(c(1,1,1,1))
+  # Create a minimal NeuroVec with 1x1x1x1 dimensions
+  space <- neuroim2::NeuroSpace(c(1,1,1,1))
+  arr <- array(1, dim = c(1,1,1,1))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+  
   expect_error(neurovec_to_fpar(nv, tempfile(), NA_character_))
   expect_error(neurovec_to_fpar(nv, tempfile(), "sub01", session_id = 1))
 })
@@ -17,7 +21,11 @@ test_that("scan identifiers validated", {
 test_that("basic invocation", {
   skip_if_not_installed("neuroim2")
 
-  nv <- neuroim2::emptyNeuroVec(c(1,1,1,1))
+  # Create a minimal NeuroVec with 1x1x1x1 dimensions
+  space <- neuroim2::NeuroSpace(c(1,1,1,1))
+  arr <- array(1, dim = c(1,1,1,1))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+  
   res <- neurovec_to_fpar(nv, tempfile(), "sub01")
   expect_true(inherits(res$space, "NeuroSpace"))
 })
@@ -59,7 +67,11 @@ test_that("arrow table has expected columns", {
   skip_if_not_installed("neuroim2")
   skip_if_not_installed("arrow")
 
-  nv <- neuroim2::emptyNeuroVec(c(1,1,1,1))
+  # Create a minimal NeuroVec with 1x1x1x1 dimensions
+  space <- neuroim2::NeuroSpace(c(1,1,1,1))
+  arr <- array(1, dim = c(1,1,1,1))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+  
   res <- neurovec_to_fpar(nv, tempfile(), "sub01")
   tbl <- res$arrow_table
   expected <- c("subject_id", "session_id", "task_id", "run_id",
@@ -96,6 +108,6 @@ test_that("metadata stored and retrievable", {
   neurovec_to_fpar(nv, tmp, "sub01", reference_space = "test")
 
   md <- read_fpar_metadata(tmp)
-  expect_equal(md$original_dimensions, c(2,2,1,1))
-  expect_equal(md$reference_space, "test")
+  expect_equal(md$spatial_properties$original_dimensions, c(2,2,1,1))
+  expect_equal(md$spatial_properties$reference_space, "test")
 })

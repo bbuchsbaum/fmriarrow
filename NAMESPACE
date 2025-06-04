@@ -3,7 +3,8 @@
 # Import core functions from dependencies
 import(neuroim2)
 importFrom(arrow, write_parquet, read_parquet, open_dataset, Table)
-importFrom(dplyr, filter, arrange, select, mutate, left_join)
+importFrom(dplyr, filter, arrange, select, mutate, left_join, collect)
+importFrom(digest, digest)
 importFrom(jsonlite, toJSON, fromJSON)
 
 # Export main functions (to be implemented)

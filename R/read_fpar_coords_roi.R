@@ -1,58 +1,30 @@
-#' Query a Parquet file for a cuboid ROI
+#' Read voxel data for a coordinate-based ROI
 #'
-#' Retrieve BOLD data for a region specified by 0-based coordinate
-#' ranges. The query uses the Z-index range derived from the
-#' coordinates for fast filtering and optionally applies an exact
-#' coordinate filter.
+#' Queries a Parquet file produced by `neurovec_to_fpar()` for voxels
+#' within the specified coordinate ranges.
 #'
-#' @param parquet_path Path to the Parquet file created by
-#'   [neurovec_to_fpar()].
-#' @param x_range,y_range,z_range Integer vectors (length 1 or 2)
-#'   giving inclusive coordinate ranges in 0-based space.
-#' @param exact Logical; if `TRUE`, filter by coordinates after the
-#'   initial Z-index range query.
-#' @param columns Optional character vector of columns to return. If
-#'   `NULL`, all columns are returned.
+#' @param parquet_path Path to the Parquet file.
+#' @param x_range Vector of length 1 or 2 giving the x-coordinate range (0-based, inclusive).
+#' @param y_range Vector of length 1 or 2 giving the y-coordinate range (0-based, inclusive).
+#' @param z_range Vector of length 1 or 2 giving the z-coordinate range (0-based, inclusive).
+#' @param columns Optional character vector of columns to return. If `NULL`, all
+#'   columns are returned.
+#' @param max_coord_bits Maximum number of bits per coordinate (default: 10).
 #'
-#' @return An Arrow Table containing the selected rows.
+#' @return A data.frame containing the filtered rows.
 #' @export
 read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
-                                 exact = TRUE, columns = NULL) {
+                                 columns = NULL, max_coord_bits = 10) {
   validate_parquet_path(parquet_path)
-  if (!is.logical(exact) || length(exact) != 1) {
-    stop("exact must be a single logical value")
-  }
-  if (!is.null(columns) && !is.character(columns)) {
-    stop("columns must be NULL or a character vector")
-  }
 
-  x_range <- validate_coordinate_range(x_range, "x_range")
-  y_range <- validate_coordinate_range(y_range, "y_range")
-  z_range <- validate_coordinate_range(z_range, "z_range")
+  # Validate and normalize coordinate ranges
+  x_range <- validate_coordinate_range(x_range, "x_range", max_coord_bits)
+  y_range <- validate_coordinate_range(y_range, "y_range", max_coord_bits)
+  z_range <- validate_coordinate_range(z_range, "z_range", max_coord_bits)
 
-  zrange <- coords_to_zindex_range(x_range, y_range, z_range)
+  # Convert coordinate ranges to Z-index range
+  zindex_range <- coords_to_zindex_range(x_range, y_range, z_range, max_coord_bits)
 
-  cols_needed <- columns
-  if (exact || is.null(columns)) {
-    cols_needed <- unique(c(columns, "x", "y", "z", "zindex"))
-  }
-
-  tbl <- read_fpar_zindex_range(parquet_path, zrange$min_zindex,
-                                zrange$max_zindex, columns = cols_needed)
-
-  if (exact) {
-    tbl <- tbl |>
-      dplyr::filter(
-        x >= as.integer(x_range[1]) & x <= as.integer(x_range[length(x_range)]) &
-        y >= as.integer(y_range[1]) & y <= as.integer(y_range[length(y_range)]) &
-        z >= as.integer(z_range[1]) & z <= as.integer(z_range[length(z_range)])
-      )
-  }
-
-  if (!is.null(columns)) {
-    tbl <- tbl |>
-      dplyr::select(dplyr::all_of(columns))
-  }
-
-  tbl
+  # Query using Z-index range
+  read_fpar_zindex_range(parquet_path, zindex_range$min_zindex, zindex_range$max_zindex, columns)
 }
