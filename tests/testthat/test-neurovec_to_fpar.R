@@ -64,3 +64,19 @@ test_that("parquet file written and sorted", {
   df <- as.data.frame(tbl)
   expect_equal(df$zindex, sort(df$zindex))
 })
+
+test_that("metadata stored and retrievable", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  space <- neuroim2::NeuroSpace(c(2,2,1,1))
+  arr <- array(1, dim = c(2,2,1,1))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+
+  tmp <- tempfile(fileext = ".parquet")
+  neurovec_to_fpar(nv, tmp, "sub01", reference_space = "test")
+
+  md <- read_fpar_metadata(tmp)
+  expect_equal(md$original_dimensions, c(2,2,1,1))
+  expect_equal(md$reference_space, "test")
+})
