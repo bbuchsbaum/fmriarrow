@@ -58,6 +58,14 @@
 - Metadata structure matches proposal specification
 - Function handles missing/optional metadata gracefully
 
+### Implementation
+
+The package now includes an internal helper `extract_neurospace_metadata()` that
+builds the metadata list described above. `neurovec_to_fpar()` calls this helper
+and updates the `bold_value_range` after iterating over voxels. The function also
+accepts the new `reference_space` and `repetition_time` parameters and embeds all
+fields in the returned metadata structure.
+
 ### **`[SPRINT2-002]` Embed Metadata into Parquet File**
 
 **Purpose:** Store the extracted metadata as Parquet schema metadata for later retrieval.

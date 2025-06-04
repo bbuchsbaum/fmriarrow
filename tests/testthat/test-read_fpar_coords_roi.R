@@ -15,24 +15,41 @@ neurovec_to_fpar(nv, tmp, "sub01")
 
 test_that("basic coordinate ROI query", {
   # Query a single voxel
-  result <- read_fpar_coords_roi(tmp, c(1, 1), c(1, 1), c(1, 1))
-  expect_equal(nrow(result), 1)
-  expect_equal(result$x[1], 1)
-  expect_equal(result$y[1], 1)
-  expect_equal(result$z[1], 1)
+  result <- read_fpar_coords_roi(tmp, c(1, 1), c(1, 1), c(1, 1), exact = TRUE)
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 1)
+  expect_equal(df$x[1], 1)
+  expect_equal(df$y[1], 1)
+  expect_equal(df$z[1], 1)
 })
 
 test_that("multi-voxel coordinate ROI query", {
   # Query a 2x2x1 region
-  result <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0))
-  expect_equal(nrow(result), 4)
-  expect_true(all(result$x %in% c(0, 1)))
-  expect_true(all(result$y %in% c(0, 1)))
-  expect_true(all(result$z == 0))
+  result <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0), exact = TRUE)
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 4)
+  expect_true(all(df$x %in% c(0, 1)))
+  expect_true(all(df$y %in% c(0, 1)))
+  expect_true(all(df$z == 0))
 })
 
 test_that("out-of-bounds coordinates fail gracefully", {
   # Query beyond the image bounds
-  result <- read_fpar_coords_roi(tmp, c(10, 15), c(10, 15), c(10, 15))
-  expect_equal(nrow(result), 0)
+  result <- read_fpar_coords_roi(tmp, c(10, 15), c(10, 15), c(10, 15), exact = TRUE)
+  df <- as.data.frame(result)
+  expect_equal(nrow(df), 0)
+})
+
+test_that("column selection works with exact filtering", {
+  result <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0),
+                                 columns = "bold", exact = TRUE)
+  df <- as.data.frame(result)
+  expect_equal(names(df), "bold")
+  expect_equal(nrow(df), 4)
+})
+
+test_that("approximate filtering returns at least as many rows", {
+  exact_res <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0), exact = TRUE)
+  approx_res <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0), exact = FALSE)
+  expect_true(nrow(as.data.frame(approx_res)) >= nrow(as.data.frame(exact_res)))
 })

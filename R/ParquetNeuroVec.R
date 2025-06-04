@@ -1,0 +1,446 @@
+#' ParquetNeuroVec Class
+#' 
+#' An S4 class that inherits from `neuroim2::NeuroVec` and provides efficient
+#' array-like access to 4D fMRI data stored in Parquet format with spatial indexing.
+#' 
+#' @description 
+#' ParquetNeuroVec provides a NeuroVec-compatible interface for accessing fMRI data
+#' stored in the optimized Parquet format created by `neurovec_to_fpar()`. It leverages
+#' spatial indexing for efficient querying while maintaining full compatibility with
+#' neuroim2 workflows.
+#' 
+#' @slot parquet_path character. Path to the .fpar file.
+#' @slot metadata list. Cached metadata from the Parquet file.
+#' @slot lazy logical. Whether to use lazy loading for data access.
+#' 
+#' @name ParquetNeuroVec-class
+#' @export
+setClass("ParquetNeuroVec",
+  contains = "NeuroVec",
+  slots = c(
+    parquet_path = "character",
+    metadata = "list", 
+    lazy = "logical"
+  )
+)
+
+#' Create a ParquetNeuroVec Object
+#' 
+#' @param parquet_path character. Path to the .fpar file
+#' @param lazy logical. Whether to use lazy loading (default: TRUE)
+#' 
+#' @return A ParquetNeuroVec object
+#' @export
+#' 
+#' @examples
+#' \dontrun{
+#' # Create from an existing .fpar file
+#' pvec <- ParquetNeuroVec("path/to/data.fpar")
+#' 
+#' # Access dimensions
+#' dim(pvec)
+#' 
+#' # Extract time series
+#' ts <- series(pvec, 30, 40, 20)
+#' 
+#' # Extract ROI time series
+#' roi_ts <- series_roi(pvec, 25:35, 35:45, 15:25)
+#' }
+ParquetNeuroVec <- function(parquet_path, lazy = TRUE) {
+  # Validate input
+  if (!file.exists(parquet_path)) {
+    stop("Parquet file not found: ", parquet_path)
+  }
+  
+  if (!grepl("\\.(fpar|parquet)$", parquet_path)) {
+    warning("File extension should be .fpar or .parquet")
+  }
+  
+  # Read metadata to extract spatial properties
+  metadata <- read_fpar_metadata(parquet_path)
+  
+  # Extract spatial properties for NeuroSpace construction
+  spatial_props <- metadata$spatial_properties
+  if (is.null(spatial_props)) {
+    stop("Spatial properties not found in metadata")
+  }
+  
+  # Reconstruct NeuroSpace from metadata
+  dims <- spatial_props$original_dimensions
+  spacing_vec <- spatial_props$voxel_size_mm
+  affine_mat <- matrix(spatial_props$affine_matrix, nrow = 4, ncol = 4)
+  
+  # Create NeuroSpace
+  neuro_space <- neuroim2::NeuroSpace(
+    dim = dims,
+    spacing = spacing_vec,
+    trans = affine_mat
+  )
+  
+  # Create empty data array (will be populated lazily)
+  if (lazy) {
+    # Create a minimal placeholder array
+    empty_data <- array(NA_real_, dim = c(1, 1, 1, 1))
+  } else {
+    # Load full data (for smaller datasets)
+    data_table <- arrow::read_parquet(parquet_path)
+    data_table <- data_table |> dplyr::arrange(zindex)
+    
+    # Reconstruct 4D array
+    bold_matrix <- do.call(rbind, data_table$bold)
+    empty_data <- array(NA_real_, dim = dims)
+    
+    # Fill array using coordinate information
+    coords_matrix <- as.matrix(data_table[, c("x", "y", "z")])
+    coords_matrix <- coords_matrix + 1  # Convert 0-based to 1-based
+    
+    for (i in seq_len(nrow(coords_matrix))) {
+      x <- coords_matrix[i, 1]
+      y <- coords_matrix[i, 2] 
+      z <- coords_matrix[i, 3]
+      empty_data[x, y, z, ] <- bold_matrix[i, ]
+    }
+  }
+  
+  # Create the object using new()
+  obj <- new("ParquetNeuroVec",
+    space = neuro_space,
+    label = basename(parquet_path),
+    parquet_path = parquet_path,
+    metadata = metadata,
+    lazy = lazy
+  )
+  
+  return(obj)
+}
+
+#' Extract Time Series from ParquetNeuroVec
+#' 
+#' @param x ParquetNeuroVec object
+#' @param i integer. x-coordinate (1-based)
+#' @param j integer. y-coordinate (1-based) 
+#' @param k integer. z-coordinate (1-based)
+#' @param drop logical. Whether to drop dimensions of length 1
+#' 
+#' @return numeric vector of time series values
+#' @export
+#' 
+setMethod("series", signature(x = "ParquetNeuroVec", i = "integer"), 
+  function(x, i, j, k, drop = TRUE) {
+    # Convert 1-based to 0-based coordinates
+    x_coord <- i - 1
+    y_coord <- j - 1 
+    z_coord <- k - 1
+    
+    # Validate coordinates
+    dims <- x@metadata$spatial_properties$original_dimensions
+    if (x_coord < 0 || x_coord >= dims[1] ||
+        y_coord < 0 || y_coord >= dims[2] ||
+        z_coord < 0 || z_coord >= dims[3]) {
+      stop("Coordinates out of bounds")
+    }
+    
+    # Query the specific voxel from Parquet file
+    data_table <- arrow::open_dataset(x@parquet_path) |>
+      dplyr::filter(x == x_coord, y == y_coord, z == z_coord) |>
+      dplyr::collect()
+    
+    if (nrow(data_table) == 0) {
+      # Return NA vector if voxel not found (might be masked out)
+      n_timepoints <- dims[4]
+      return(rep(NA_real_, n_timepoints))
+    }
+    
+    # Extract BOLD time series
+    bold_series <- data_table$bold[[1]]
+    
+    if (drop && length(bold_series) == 1) {
+      return(as.numeric(bold_series))
+    } else {
+      return(bold_series)
+    }
+  }
+)
+
+#' Extract Time Series from ParquetNeuroVec (Numeric Coordinates)
+#' 
+#' @param x ParquetNeuroVec object
+#' @param i numeric. x-coordinate 
+#' @param j numeric. y-coordinate
+#' @param k numeric. z-coordinate
+#' @param drop logical. Whether to drop dimensions
+#' 
+#' @return numeric vector of time series values
+#' @export
+#' 
+setMethod("series", signature(x = "ParquetNeuroVec", i = "numeric"),
+  function(x, i, j, k, drop = TRUE) {
+    # Convert to integer and call integer method
+    series(x, as.integer(round(i)), as.integer(round(j)), as.integer(round(k)), drop = drop)
+  }
+)
+
+#' Extract Time Series Using Matrix Coordinates
+#' 
+#' @param x ParquetNeuroVec object
+#' @param i matrix. Matrix with 3 columns (x, y, z coordinates, 1-based)
+#' 
+#' @return matrix. Each column is a voxel's time series
+#' @export
+#' 
+setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
+  function(x, i) {
+    if (ncol(i) != 3) {
+      stop("Coordinate matrix must have 3 columns (x, y, z)")
+    }
+    
+    # Convert 1-based to 0-based coordinates
+    coords_0based <- i - 1
+    
+    # Create coordinate ranges for efficient querying
+    x_range <- range(coords_0based[, 1])
+    y_range <- range(coords_0based[, 2])
+    z_range <- range(coords_0based[, 3])
+    
+    # Query broader region then filter to exact coordinates
+    data_table <- read_fpar_coords_roi(
+      x@parquet_path, 
+      x_range = x_range,
+      y_range = y_range, 
+      z_range = z_range,
+      exact = TRUE,
+      columns = c("x", "y", "z", "bold")
+    ) |> dplyr::collect()
+    
+    # Match coordinates and extract series
+    result_matrix <- matrix(NA_real_, 
+                           nrow = x@metadata$acquisition_properties$timepoint_count,
+                           ncol = nrow(i))
+    
+    for (idx in seq_len(nrow(i))) {
+      coord_match <- data_table |>
+        dplyr::filter(x == coords_0based[idx, 1], 
+                     y == coords_0based[idx, 2], 
+                     z == coords_0based[idx, 3])
+      
+      if (nrow(coord_match) > 0) {
+        result_matrix[, idx] <- coord_match$bold[[1]]
+      }
+    }
+    
+    return(result_matrix)
+  }
+)
+
+#' Extract ROI Time Series from ParquetNeuroVec
+#' 
+#' @param x ParquetNeuroVec object
+#' @param i integer. x-coordinate range or single coordinate
+#' @param j integer. y-coordinate range or single coordinate
+#' @param k integer. z-coordinate range or single coordinate
+#' 
+#' @return numeric vector. Average time series across the ROI
+#' @export
+#' 
+setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "integer"),
+  function(x, i, j, k) {
+    # Convert 1-based to 0-based coordinates
+    x_range <- range(i) - 1
+    y_range <- range(j) - 1
+    z_range <- range(k) - 1
+    
+    # Query ROI from Parquet file
+    roi_data <- read_fpar_coords_roi(
+      x@parquet_path,
+      x_range = x_range,
+      y_range = y_range,
+      z_range = z_range,
+      exact = TRUE,
+      columns = c("bold")
+    ) |> dplyr::collect()
+    
+    if (nrow(roi_data) == 0) {
+      # Return NA vector if no voxels found in ROI
+      n_timepoints <- x@metadata$acquisition_properties$timepoint_count
+      return(rep(NA_real_, n_timepoints))
+    }
+    
+    # Extract all BOLD time series and compute mean
+    bold_matrix <- do.call(rbind, roi_data$bold)
+    roi_mean <- colMeans(bold_matrix, na.rm = TRUE)
+    
+    return(roi_mean)
+  }
+)
+
+#' Extract ROI Time Series Using Matrix Coordinates
+#' 
+#' @param x ParquetNeuroVec object  
+#' @param i matrix. Matrix with 3 columns (x, y, z coordinates, 1-based)
+#' 
+#' @return numeric vector. Average time series across the ROI
+#' @export
+#' 
+setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "matrix"),
+  function(x, i) {
+    # Get individual time series for all coordinates
+    series_matrix <- series(x, i)
+    
+    # Compute mean across voxels (columns)
+    roi_mean <- rowMeans(series_matrix, na.rm = TRUE)
+    
+    return(roi_mean)
+  }
+)
+
+#' Show Method for ParquetNeuroVec
+#' 
+#' @param object ParquetNeuroVec object
+#' @export
+#' 
+setMethod("show", "ParquetNeuroVec", 
+  function(object) {
+    cat("ParquetNeuroVec Object\n")
+    cat("======================\n\n")
+    
+    # Basic info
+    cat("* Storage Information:\n")
+    cat("  File Path:    ", object@parquet_path, "\n")
+    cat("  Lazy Loading: ", object@lazy, "\n")
+    
+    # Spatial properties
+    spatial <- object@metadata$spatial_properties
+    if (!is.null(spatial)) {
+      cat("\n* Spatial Properties:\n")
+      cat("  Dimensions:   ", paste(spatial$original_dimensions, collapse = " x "), "\n")
+      cat("  Voxel Size:   ", paste(spatial$voxel_size_mm, collapse = " x "), " mm\n")
+      if (!is.null(spatial$reference_space)) {
+        cat("  Reference:    ", spatial$reference_space, "\n")
+      }
+    }
+    
+    # Acquisition properties
+    acq <- object@metadata$acquisition_properties
+    if (!is.null(acq)) {
+      cat("\n* Acquisition Properties:\n")
+      if (!is.null(acq$repetition_time_s) && !is.na(acq$repetition_time_s)) {
+        cat("  TR:           ", acq$repetition_time_s, " s\n")
+      }
+      cat("  Time Points:  ", acq$timepoint_count, "\n")
+    }
+    
+    # Data integrity
+    integrity <- object@metadata$data_integrity
+    if (!is.null(integrity)) {
+      cat("\n* Data Properties:\n")
+      cat("  Voxel Count:  ", integrity$voxel_count, "\n")
+      if (!any(is.na(integrity$bold_value_range))) {
+        cat("  Value Range:  [", paste(round(integrity$bold_value_range, 2), collapse = ", "), "]\n")
+      }
+    }
+    
+    cat("\n* Access Methods:\n")
+    cat("  Time Series:  series(object, x, y, z)\n")
+    cat("  ROI Series:   series_roi(object, x_range, y_range, z_range)\n")
+    cat("  Matrix Query: series(object, coord_matrix)\n")
+    
+    cat("\n")
+  }
+)
+
+#' Array Subsetting for ParquetNeuroVec
+#' 
+#' Provides array-like access to the ParquetNeuroVec object
+#' 
+#' @param x ParquetNeuroVec object
+#' @param i index for first dimension (x)
+#' @param j index for second dimension (y) 
+#' @param k index for third dimension (z)
+#' @param l index for fourth dimension (time)
+#' @param drop logical. Whether to drop dimensions
+#' 
+#' @return array or vector depending on indices and drop parameter
+#' @export
+#' 
+setMethod("[", signature(x = "ParquetNeuroVec"),
+  function(x, i, j, k, l, drop = TRUE) {
+    # Handle missing indices - use full ranges
+    dims <- x@metadata$spatial_properties$original_dimensions
+    
+    if (missing(i)) i <- seq_len(dims[1])
+    if (missing(j)) j <- seq_len(dims[2])
+    if (missing(k)) k <- seq_len(dims[3])
+    if (missing(l)) l <- seq_len(dims[4])
+    
+    # Convert 1-based to 0-based for querying
+    x_range <- range(i) - 1
+    y_range <- range(j) - 1
+    z_range <- range(k) - 1
+    
+    # Query data from Parquet
+    data_table <- read_fpar_coords_roi(
+      x@parquet_path,
+      x_range = x_range,
+      y_range = y_range,
+      z_range = z_range,
+      exact = TRUE,
+      columns = c("x", "y", "z", "bold")
+    ) |> dplyr::collect()
+    
+    # Initialize result array
+    result_dims <- c(length(i), length(j), length(k), length(l))
+    result_array <- array(NA_real_, dim = result_dims)
+    
+    # Fill result array
+    for (row_idx in seq_len(nrow(data_table))) {
+      row_data <- data_table[row_idx, ]
+      
+      # Convert back to 1-based indexing
+      x_pos <- row_data$x + 1
+      y_pos <- row_data$y + 1
+      z_pos <- row_data$z + 1
+      
+      # Find positions in result array
+      x_idx <- which(i == x_pos)
+      y_idx <- which(j == y_pos)
+      z_idx <- which(k == z_pos)
+      
+      if (length(x_idx) > 0 && length(y_idx) > 0 && length(z_idx) > 0) {
+        bold_series <- row_data$bold[[1]]
+        result_array[x_idx, y_idx, z_idx, l] <- bold_series[l]
+      }
+    }
+    
+    # Apply drop only if all dimensions are of length 1, or for specific cases
+    # Don't drop dimensions automatically for 4D neuro data
+    if (drop && all(result_dims == 1)) {
+      result_array <- drop(result_array)
+    }
+    
+    return(result_array)
+  }
+)
+
+#' Get Length of ParquetNeuroVec (Number of Time Points)
+#' 
+#' @param x ParquetNeuroVec object
+#' @return integer. Number of time points
+#' @export
+#' 
+setMethod("length", "ParquetNeuroVec",
+  function(x) {
+    return(x@metadata$acquisition_properties$timepoint_count)
+  }
+)
+
+#' Get Dimensions of ParquetNeuroVec
+#' 
+#' @param x ParquetNeuroVec object
+#' @return integer vector. Dimensions of the 4D array
+#' @export
+#' 
+setMethod("dim", "ParquetNeuroVec",
+  function(x) {
+    return(x@metadata$spatial_properties$original_dimensions)
+  }
+) 

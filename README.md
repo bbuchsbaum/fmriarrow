@@ -22,7 +22,7 @@ neurovec_to_fpar(nv, outfile, subject_id = "subj01")
 md <- read_fpar_metadata(outfile)
 
 # query a small ROI (0-based coordinates)
-roi <- read_fpar_coords_roi(outfile, c(0, 1), c(0, 1), c(0, 0))
+roi <- read_fpar_coords_roi(outfile, c(0, 1), c(0, 1), c(0, 0), exact = TRUE)
 ```
 
 Coordinates stored in the Parquet file are **0-based**, whereas

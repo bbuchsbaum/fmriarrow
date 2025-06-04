@@ -69,32 +69,11 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     stop("NeuroVec must have at least 4 dimensions (3 spatial + 1 temporal)")
   }
 
-  # Extract metadata from NeuroSpace (CORE-007)
-  spacing_vec <- neuroim2::spacing(space_obj)
-  affine_matrix <- neuroim2::trans(space_obj)
-  
-  # Create comprehensive metadata structure per Sprint 2 specification
-  metadata <- list(
-    metadata_schema_version = "2.0.0",
-    source_info = list(
-      original_file = deparse(substitute(neuro_vec_obj)),
-      neuroim2_space_hash = digest::digest(space_obj, algo = "sha256")
-    ),
-    spatial_properties = list(
-      original_dimensions = as.integer(dims),
-      voxel_size_mm = as.numeric(spacing_vec[1:min(3, length(spacing_vec))]),
-      affine_matrix = as.matrix(affine_matrix),
-      reference_space = reference_space %||% "unknown",
-      coordinate_convention = "0-based RAS"
-    ),
-    acquisition_properties = list(
-      repetition_time_s = repetition_time %||% NA_real_,
-      timepoint_count = as.integer(neuro_vec_dims[4])
-    ),
-    data_integrity = list(
-      voxel_count = as.integer(prod(dims[1:3])),
-      bold_value_range = c(NA_real_, NA_real_)  # Will be computed during iteration
-    )
+  # Construct metadata structure per Sprint 2 specification
+  metadata <- extract_neurospace_metadata(
+    neuro_vec_obj,
+    reference_space = reference_space,
+    repetition_time = repetition_time
   )
 
   # Initialize voxel iteration
@@ -159,41 +138,44 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   # Add BOLD time series as list column
   voxel_data$bold <- I(bold)
 
-  # Create Arrow table and sort by zindex
-  arrow_tbl <- arrow::arrow_table(voxel_data)
+  timepoints <- as.integer(neuro_vec_dims[4])
+
+  # Define Arrow schema with explicit types
+  schema <- arrow::schema(
+    subject_id = arrow::string(),
+    session_id = arrow::string(),
+    task_id = arrow::string(),
+    run_id = arrow::string(),
+    x = arrow::uint16(),
+    y = arrow::uint16(),
+    z = arrow::uint16(),
+    zindex = arrow::uint32(),
+    bold = arrow::fixed_size_list_of(arrow::float32(), timepoints)
+  )
+
+  # Embed metadata directly in schema
+  metadata_json <- jsonlite::toJSON(metadata, auto_unbox = TRUE)
+  schema <- schema$WithMetadata(list(spatial_metadata = metadata_json))
+
+  # Create Arrow table with metadata and sort by zindex
+  arrow_tbl <- arrow::arrow_table(voxel_data, schema = schema)
   arrow_tbl_sorted <- dplyr::arrange(arrow_tbl, zindex)
-  
+
   # Convert the dplyr query back to a Table
   arrow_tbl_final <- dplyr::collect(arrow_tbl_sorted, as_data_frame = FALSE)
 
-  # Prepare metadata for Parquet schema (CORE-008)
-  metadata_json <- jsonlite::toJSON(metadata, auto_unbox = TRUE)
-
-  # Write Parquet file first
+  # Write Parquet file
   arrow::write_parquet(
     arrow_tbl_final,
     output_parquet_path,
     compression = "zstd",
     write_statistics = TRUE
   )
-  
-  # Add metadata to the written file
+
+  # Also store metadata in a sidecar file for maximum compatibility
   if (file.exists(output_parquet_path)) {
-    # Try a simpler metadata approach - write to a separate metadata file for now
-    # Since the Arrow metadata approach seems to have compatibility issues
     metadata_path <- paste0(tools::file_path_sans_ext(output_parquet_path), "_metadata.json")
     writeLines(metadata_json, metadata_path)
-    
-    # Try the Arrow metadata approach as backup
-    tryCatch({
-      temp_tbl <- arrow::read_parquet(output_parquet_path, as_data_frame = FALSE)
-      metadata_kv <- list(spatial_metadata = metadata_json)
-      new_schema <- temp_tbl$schema$WithMetadata(metadata_kv)
-      new_tbl <- arrow::arrow_table(as.data.frame(temp_tbl), schema = new_schema)
-      arrow::write_parquet(new_tbl, output_parquet_path, compression = "zstd", write_statistics = TRUE)
-    }, error = function(e) {
-      warning("Could not embed metadata in Parquet schema: ", e$message)
-    })
   }
 
   # Return diagnostic information (primarily for testing)
