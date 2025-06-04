@@ -27,6 +27,24 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   if (!inherits(neuro_vec_obj, "NeuroVec")) {
     stop("neuro_vec_obj must inherit from 'NeuroVec'")
   }
+  if (!is.character(output_parquet_path) || length(output_parquet_path) != 1) {
+    stop("output_parquet_path must be a single string")
+  }
+  if (!is.character(subject_id) || length(subject_id) != 1 ||
+      is.na(subject_id) || nchar(subject_id) == 0) {
+    stop("subject_id must be a non-empty string")
+  }
+  if (!is.null(session_id) &&
+      (!is.character(session_id) || length(session_id) != 1)) {
+    stop("session_id must be NULL or a single string")
+  }
+  if (!is.null(task_id) &&
+      (!is.character(task_id) || length(task_id) != 1)) {
+    stop("task_id must be NULL or a single string")
+  }
+  if (!is.null(run_id) && (!is.character(run_id) || length(run_id) != 1)) {
+    stop("run_id must be NULL or a single string")
+  }
 
   space_obj <- neuroim2::space(neuro_vec_obj)
 

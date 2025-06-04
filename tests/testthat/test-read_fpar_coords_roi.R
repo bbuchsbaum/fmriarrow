@@ -33,3 +33,12 @@ test_that("approximate roi", {
   df <- as.data.frame(tbl)
   expect_equal(nrow(df), 4)
 })
+
+test_that("roi returns correct bold series", {
+  tbl <- read_fpar_coords_roi(tmp, 1, 0, 0)
+  df <- as.data.frame(tbl)
+  expect_equal(df$x, 1)
+  expect_equal(df$y, 0)
+  expect_equal(df$z, 0)
+  expect_equal(df$bold[[1]], as.numeric(neuroim2::series(nv, 2,1,1)))
+})

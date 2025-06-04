@@ -18,6 +18,9 @@
 #' @export
 read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
                                  exact = TRUE, columns = NULL) {
+  if (!is.character(parquet_path) || length(parquet_path) != 1) {
+    stop("parquet_path must be a single string")
+  }
   if (!file.exists(parquet_path)) {
     stop("File does not exist: ", parquet_path)
   }
