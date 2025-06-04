@@ -3,13 +3,11 @@
 #' Convert a `neuroim2::NeuroVec` to a Z-order sorted Parquet file with 
 #' comprehensive spatial metadata embedded in the Parquet schema.
 #'
-#' The function iterates over all voxels of the input object, computes their
-#' Morton (Z-order) index using [`compute_zindex()`], extracts the full BOLD
-#' time series and writes the resulting table to disk using
-#' `arrow::write_parquet()`. Spatial metadata from the NeuroSpace is embedded
-#' as JSON in the Parquet schema metadata. The necessary number of coordinate
-#' bits is automatically calculated from the spatial dimensions so volumes with
-#' axes larger than 1024 voxels are handled transparently.
+#' The function computes voxel coordinates in a vectorized fashion,
+#' obtains all BOLD time series as a matrix and stores them together with
+#' Morton (Z-order) indices in a Parquet file using `arrow::write_parquet()`.
+#' Spatial metadata from the NeuroSpace is embedded as JSON in the
+#' Parquet schema metadata.
 #'
 #' @param neuro_vec_obj A `neuroim2::NeuroVec` object.
 #' @param output_parquet_path Path to the Parquet file to create.
@@ -85,13 +83,27 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     stop("NeuroSpace has zero voxels")
   }
   
-  x <- integer(n_vox)
-  y <- integer(n_vox)
-  z <- integer(n_vox)
-  zindex <- integer(n_vox)
-  bold <- vector("list", n_vox)
-  
+  # Compute voxel coordinates all at once (1-based)
+  coord_matrix <- arrayInd(seq_len(n_vox), .dim = dims[1:3])
+
+  # Convert to 0-based coordinates
+  x <- coord_matrix[, 1] - 1L
+  y <- coord_matrix[, 2] - 1L
+  z <- coord_matrix[, 3] - 1L
+
+  # Morton indices for all voxels
+  zindex <- compute_zindex(x, y, z)
+
+  # Extract all BOLD time series as a matrix (voxels x time)
+  bold_matrix <- t(neuroim2::series(neuro_vec_obj, coord_matrix))
+
   # Track min/max values for data integrity
+##<<<<<<< codex/refactor-voxel-loop-with-vectorized-computation
+  min_value <- min(bold_matrix, na.rm = TRUE)
+  max_value <- max(bold_matrix, na.rm = TRUE)
+
+  bold <- asplit(bold_matrix, 1)
+###=======
   min_value <- Inf
   max_value <- -Inf
 
@@ -118,6 +130,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     if (is.finite(ts_min)) min_value <- min(min_value, ts_min)
     if (is.finite(ts_max)) max_value <- max(max_value, ts_max)
   }
+##>>>>>>> main
   
   # Update metadata with computed value range
   metadata$data_integrity$bold_value_range <- c(
