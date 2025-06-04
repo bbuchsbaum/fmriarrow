@@ -21,3 +21,8 @@ test_that("input validation", {
   expect_error(compute_zindex(-1, 0, 0))
   expect_error(compute_zindex(0, 0, 1024, max_coord_bits = 10))
 })
+
+test_that("max_coord_bits greater than 10 works", {
+  val <- compute_zindex(1024, 0, 0, max_coord_bits = 11)
+  expect_equal(val, bitwShiftL(1L, 30))
+})

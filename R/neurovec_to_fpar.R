@@ -7,7 +7,9 @@
 #' Morton (Z-order) index using [`compute_zindex()`], extracts the full BOLD
 #' time series and writes the resulting table to disk using
 #' `arrow::write_parquet()`. Spatial metadata from the NeuroSpace is embedded
-#' as JSON in the Parquet schema metadata.
+#' as JSON in the Parquet schema metadata. The necessary number of coordinate
+#' bits is automatically calculated from the spatial dimensions so volumes with
+#' axes larger than 1024 voxels are handled transparently.
 #'
 #' @param neuro_vec_obj A `neuroim2::NeuroVec` object.
 #' @param output_parquet_path Path to the Parquet file to create.
@@ -60,6 +62,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   # Extract NeuroSpace and validate
   space_obj <- neuroim2::space(neuro_vec_obj)
   dims <- dim(space_obj)
+  max_coord_bits <- max(1L, ceiling(log2(max(dims[1:3]))))
   neuro_vec_dims <- dim(neuro_vec_obj)
   
   if (length(dims) < 3) {
@@ -103,7 +106,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     z[i] <- coords[3] - 1L
     
     # Compute Z-order index
-    zindex[i] <- compute_zindex(x[i], y[i], z[i])
+    zindex[i] <- compute_zindex(x[i], y[i], z[i], max_coord_bits = max_coord_bits)
     
     # Extract BOLD time series (using 1-based coordinates for neuroim2)
     ts_data <- as.numeric(neuroim2::series(neuro_vec_obj, coords[1], coords[2], coords[3]))
