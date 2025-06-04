@@ -36,15 +36,22 @@ read_fpar_metadata <- function(parquet_path) {
   # Fallback to reading metadata embedded in the Parquet schema
   if (length(parsed_metadata) == 0) {
     tryCatch({
-      tbl <- arrow::read_parquet(parquet_path, as_data_frame = FALSE,
-                                 col_select = character(0))
-      schema_metadata <- tbl$schema$metadata
+      reader <- arrow::ParquetFileReader$create(parquet_path)
+      on.exit(reader$close(), add = TRUE)
+      schema_metadata <- reader$GetSchema()$metadata
 
       if (length(schema_metadata) > 0) {
         if (!is.null(schema_metadata$spatial_metadata)) {
-          parsed_metadata <- jsonlite::fromJSON(schema_metadata$spatial_metadata)
+          spatial_md <- schema_metadata$spatial_metadata
+          if (is.raw(spatial_md)) {
+            spatial_md <- rawToChar(spatial_md)
+          }
+          parsed_metadata <- jsonlite::fromJSON(spatial_md)
         } else {
           parsed_metadata <- lapply(schema_metadata, function(x) {
+            if (is.raw(x)) {
+              x <- rawToChar(x)
+            }
             tryCatch({
               val <- jsonlite::fromJSON(x)
               if (is.character(val) && length(val) == 1) val else val

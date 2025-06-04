@@ -129,3 +129,17 @@ test_that("metadata stored and retrievable", {
   expect_equal(md$spatial_properties$original_dimensions, c(2,2,1,1))
   expect_equal(md$spatial_properties$reference_space, "test")
 })
+
+test_that("volumes larger than 1024 voxels per axis work", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  dims <- c(1025, 1, 1, 1)
+  space <- neuroim2::NeuroSpace(dims)
+  arr <- array(seq_len(prod(dims)), dim = dims)
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+
+  res <- neurovec_to_fpar(nv, tempfile(), "sub01")
+  expect_equal(nrow(res$voxel_data), prod(dims[1:3]))
+  expect_equal(res$voxel_data$zindex, sort(res$voxel_data$zindex))
+})

@@ -31,3 +31,29 @@ test_that("warning for non-standard extension", {
   file.copy(tmp, tmp2)
   expect_warning(read_fpar_metadata(tmp2), "File extension should")
 })
+
+test_that("metadata retrieved when sidecar missing", {
+  sidecar <- sub("\\.parquet$", "_metadata.json", tmp)
+  file.remove(sidecar)
+
+  md2 <- read_fpar_metadata(tmp)
+
+  expect_equal(md2$spatial_properties$original_dimensions, c(2L, 2L, 1L, 3L))
+  expect_equal(md2$spatial_properties$reference_space, "TESTSPACE")
+  expect_equal(md2$acquisition_properties$timepoint_count, 3L)
+})
+
+
+test_that("raw schema metadata parsed", {
+  skip_if_not_installed("arrow")
+
+  json_md <- jsonlite::toJSON(list(test_value = 123), auto_unbox = TRUE)
+  tbl <- arrow::arrow_table(dummy = 1L)
+  sch <- tbl$schema$WithMetadata(list(spatial_metadata = charToRaw(json_md)))
+  tbl <- tbl$with_schema(sch)
+  raw_tmp <- tempfile(fileext = ".parquet")
+  arrow::write_parquet(tbl, raw_tmp)
+
+  md_raw <- read_fpar_metadata(raw_tmp)
+  expect_equal(md_raw$test_value, 123)
+})
