@@ -60,6 +60,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   # Extract NeuroSpace and validate
   space_obj <- neuroim2::space(neuro_vec_obj)
   dims <- dim(space_obj)
+  max_coord_bits <- max(1L, ceiling(log2(max(dims[1:3]))))
   neuro_vec_dims <- dim(neuro_vec_obj)
   
   if (length(dims) < 3) {
@@ -97,10 +98,39 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   bold_matrix <- t(neuroim2::series(neuro_vec_obj, coord_matrix))
 
   # Track min/max values for data integrity
+##<<<<<<< codex/refactor-voxel-loop-with-vectorized-computation
   min_value <- min(bold_matrix, na.rm = TRUE)
   max_value <- max(bold_matrix, na.rm = TRUE)
 
   bold <- asplit(bold_matrix, 1)
+###=======
+  min_value <- Inf
+  max_value <- -Inf
+
+  # Extract voxel data and compute Z-indices
+  for (i in seq_len(n_vox)) {
+    # Get 1-based grid coordinates from neuroim2
+    coords <- neuroim2::index_to_grid(space_obj, i)
+    
+    # Convert to 0-based for storage
+    x[i] <- coords[1] - 1L
+    y[i] <- coords[2] - 1L
+    z[i] <- coords[3] - 1L
+    
+    # Compute Z-order index
+    zindex[i] <- compute_zindex(x[i], y[i], z[i], max_coord_bits = max_coord_bits)
+    
+    # Extract BOLD time series (using 1-based coordinates for neuroim2)
+    ts_data <- as.numeric(neuroim2::series(neuro_vec_obj, coords[1], coords[2], coords[3]))
+    bold[[i]] <- ts_data
+    
+    # Update min/max for data integrity
+    ts_min <- min(ts_data, na.rm = TRUE)
+    ts_max <- max(ts_data, na.rm = TRUE)
+    if (is.finite(ts_min)) min_value <- min(min_value, ts_min)
+    if (is.finite(ts_max)) max_value <- max(max_value, ts_max)
+  }
+##>>>>>>> main
   
   # Update metadata with computed value range
   metadata$data_integrity$bold_value_range <- c(
