@@ -20,7 +20,28 @@ validate_parquet_path <- function(path, mode = "read") {
   }
 }
 
+# Validate the max_coord_bits argument
+#
+# Ensures the value is numeric length 1, integer valued and greater than
+# zero. Returns the integer value on success.
+#' @noRd
+validate_max_coord_bits <- function(max_coord_bits) {
+  if (!is.numeric(max_coord_bits) || length(max_coord_bits) != 1 ||
+      is.na(max_coord_bits)) {
+    stop("max_coord_bits must be a single numeric value")
+  }
+  int_val <- as.integer(max_coord_bits)
+  if (int_val != max_coord_bits) {
+    stop("max_coord_bits must be an integer value")
+  }
+  if (int_val <= 0L) {
+    stop("max_coord_bits must be > 0")
+  }
+  int_val
+}
+
 validate_coordinate_range <- function(range, name, max_coord_bits = 10) {
+  max_coord_bits <- validate_max_coord_bits(max_coord_bits)
   if (length(range) == 1) {
     range <- c(range, range)
   }
