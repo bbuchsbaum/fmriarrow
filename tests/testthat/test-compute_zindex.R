@@ -44,3 +44,8 @@ test_that("invalid max_coord_bits triggers errors", {
   expect_error(compute_zindex(0, 0, 0, max_coord_bits = 1.5))
   expect_error(compute_zindex(0, 0, 0, max_coord_bits = c(10, 11)))
 })
+
+test_that("max_coord_bits greater than 10 works", {
+  val <- compute_zindex(1024, 0, 0, max_coord_bits = 11)
+  expect_equal(val, bitwShiftL(1L, 30))
+})

@@ -10,8 +10,9 @@
 #' @param x,y,z Integer vectors of equal length with 0-based
 #'   voxel coordinates.
 #' @param max_coord_bits Maximum number of bits used to represent
-#'   each coordinate (default 10). Must be a positive integer less
-#'   than 31.
+#'   each coordinate (default 10).
+#'   For volumes with dimensions exceeding 1024 voxels along any axis,
+#'   set `max_coord_bits` accordingly (e.g., `ceiling(log2(max(dim)))`).
 #'
 #' @return Integer vector of the same length as `x` with the
 #'   computed Morton codes.
