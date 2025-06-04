@@ -13,3 +13,8 @@ test_that("small cuboid", {
   expect_equal(zr$min_zindex, 0L)
   expect_equal(zr$max_zindex, 3L)
 })
+
+test_that("invalid ranges trigger errors", {
+  expect_error(coords_to_zindex_range(c(2, 1), 0, 0))
+  expect_error(coords_to_zindex_range(c(0, 1), c(NA, 1), c(0, 0)))
+})
