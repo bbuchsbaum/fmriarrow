@@ -115,6 +115,10 @@ test_that("ParquetNeuroVec series method with matrix coordinates", {
   expect_true(is.matrix(series_matrix))
   expect_equal(nrow(series_matrix), dims[4])
   expect_equal(ncol(series_matrix), nrow(coord_matrix))
+
+  # Out of bounds matrix should error
+  oob_matrix <- matrix(c(dims[1] + 1, 1, 1), ncol = 3)
+  expect_error(series(pvec, oob_matrix), "out of bounds")
   
   # Test error for invalid matrix dimensions
   invalid_matrix <- matrix(c(1, 1), nrow = 1, ncol = 2)
@@ -160,6 +164,9 @@ test_that("ParquetNeuroVec series_roi methods", {
   roi_ts_matrix <- series_roi(pvec, coord_matrix)
   expect_type(roi_ts_matrix, "double")
   expect_length(roi_ts_matrix, dims[4])
+
+  # Out of bounds range should error
+  expect_error(series_roi(pvec, dims[1] + 1L, 1L, 1L), "out of bounds")
   
   # Cleanup
   unlink(parquet_path)
@@ -253,10 +260,12 @@ test_that("ParquetNeuroVec lazy vs non-lazy loading", {
   # Test lazy loading (default)
   pvec_lazy <- ParquetNeuroVec(parquet_path, lazy = TRUE)
   expect_true(pvec_lazy@lazy)
-  
+
   # Test non-lazy loading
   pvec_eager <- ParquetNeuroVec(parquet_path, lazy = FALSE)
   expect_false(pvec_eager@lazy)
+  expect_equal(dim(pvec_eager@data), dims)
+  expect_equal(dim(pvec_lazy@data), c(1, 1, 1, 1))
   
   # Both should provide the same interface
   expect_equal(dim(pvec_lazy), dim(pvec_eager))
