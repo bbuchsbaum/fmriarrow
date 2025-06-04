@@ -159,8 +159,23 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   # Add BOLD time series as list column
   voxel_data$bold <- I(bold)
 
+  timepoints <- as.integer(neuro_vec_dims[4])
+
+  # Define Arrow schema with explicit types
+  schema <- arrow::schema(
+    subject_id = arrow::string(),
+    session_id = arrow::string(),
+    task_id = arrow::string(),
+    run_id = arrow::string(),
+    x = arrow::uint16(),
+    y = arrow::uint16(),
+    z = arrow::uint16(),
+    zindex = arrow::uint32(),
+    bold = arrow::fixed_size_list_of(arrow::float32(), timepoints)
+  )
+
   # Create Arrow table and sort by zindex
-  arrow_tbl <- arrow::arrow_table(voxel_data)
+  arrow_tbl <- arrow::arrow_table(voxel_data, schema = schema)
   arrow_tbl_sorted <- dplyr::arrange(arrow_tbl, zindex)
   
   # Convert the dplyr query back to a Table
@@ -174,7 +189,8 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     arrow_tbl_final,
     output_parquet_path,
     compression = "zstd",
-    write_statistics = TRUE
+    write_statistics = TRUE,
+    row_group_size = 4096
   )
   
   # Add metadata to the written file
@@ -190,7 +206,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
       metadata_kv <- list(spatial_metadata = metadata_json)
       new_schema <- temp_tbl$schema$WithMetadata(metadata_kv)
       new_tbl <- arrow::arrow_table(as.data.frame(temp_tbl), schema = new_schema)
-      arrow::write_parquet(new_tbl, output_parquet_path, compression = "zstd", write_statistics = TRUE)
+      arrow::write_parquet(new_tbl, output_parquet_path, compression = "zstd", write_statistics = TRUE, row_group_size = 4096)
     }, error = function(e) {
       warning("Could not embed metadata in Parquet schema: ", e$message)
     })

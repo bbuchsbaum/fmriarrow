@@ -79,6 +79,24 @@ test_that("arrow table has expected columns", {
   expect_equal(sort(tbl$schema$names), sort(expected))
 })
 
+test_that("arrow table has expected data types", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  space <- neuroim2::NeuroSpace(c(1,1,1,2))
+  arr <- array(1, dim = c(1,1,1,2))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+
+  res <- neurovec_to_fpar(nv, tempfile(), "sub01")
+  sch <- res$arrow_table$schema
+
+  expect_true(inherits(sch$GetFieldByName("x")$type, "UInt16Type"))
+  expect_true(inherits(sch$GetFieldByName("y")$type, "UInt16Type"))
+  expect_true(inherits(sch$GetFieldByName("z")$type, "UInt16Type"))
+  expect_true(inherits(sch$GetFieldByName("zindex")$type, "UInt32Type"))
+  expect_true(inherits(sch$GetFieldByName("bold")$type, "FixedSizeListType"))
+})
+
 test_that("parquet file written and sorted", {
   skip_if_not_installed("neuroim2")
   skip_if_not_installed("arrow")
