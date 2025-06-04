@@ -15,7 +15,7 @@
 #'   but can be faster for large ROIs.
 #' @param max_coord_bits Maximum number of bits per coordinate (default: 10).
 #'
-#' @return A data.frame containing the filtered rows.
+#' @return An Arrow Table containing the filtered rows.
 #' @export
 read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
                                  columns = NULL, exact = TRUE,
