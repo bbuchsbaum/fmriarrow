@@ -1,10 +1,10 @@
 #' Compute 3D Hilbert index
 #'
-#' This function does not implement a true Hilbert curve.
-#' Instead it interleaves Gray-coded coordinate bits to
-#' produce a Morton order (also called Z-order). The result
-#' is therefore a Gray-coded Morton index rather than a
-#' strict Hilbert curve mapping. Coordinates must be
+#' This initial implementation approximates a 3D Hilbert curve
+#' by interleaving Gray-coded coordinate bits. For each bit
+#' position `i`, the masked bit is shifted right by `i` before
+#' being placed at bit position `3*i` (and offsets `+1` and `+2`)
+#' in the final Morton-like code. Coordinates must be
 #' non-negative integers and less than 2^`max_coord_bits`.
 #'
 #' @param x,y,z Integer vectors of equal length with 0-based
@@ -47,9 +47,12 @@ compute_hindex <- function(x, y, z, max_coord_bits = 10) {
   res <- integer(length(x))
   for (i in 0:(max_coord_bits - 1L)) {
     mask <- bitwShiftL(1L, i)
-    res <- bitwOr(res, bitwShiftL(bitwAnd(x, mask), 3L * i))
-    res <- bitwOr(res, bitwShiftL(bitwAnd(y, mask), 3L * i + 1L))
-    res <- bitwOr(res, bitwShiftL(bitwAnd(z, mask), 3L * i + 2L))
+    xi <- bitwShiftR(bitwAnd(x, mask), i)
+    yi <- bitwShiftR(bitwAnd(y, mask), i)
+    zi <- bitwShiftR(bitwAnd(z, mask), i)
+    res <- bitwOr(res, bitwShiftL(xi, 3L * i))
+    res <- bitwOr(res, bitwShiftL(yi, 3L * i + 1L))
+    res <- bitwOr(res, bitwShiftL(zi, 3L * i + 2L))
   }
   res
 }
