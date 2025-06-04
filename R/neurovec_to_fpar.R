@@ -1,9 +1,11 @@
 #' Convert a NeuroVec object to a Parquet file
 #'
-#' This is the initial stub for the conversion function described in the
-#' project proposal. It currently only performs basic input validation and
-#' extracts the associated NeuroSpace object. Later tasks will implement the
-#' actual voxel iteration and Parquet writing steps.
+#' Convert a `neuroim2::NeuroVec` to a Z-order sorted Parquet file.
+#'
+#' The function iterates over all voxels of the input object, computes their
+#' Morton (Z-order) index using [`compute_zindex()`], extracts the full BOLD
+#' time series and writes the resulting table to disk using
+#' `arrow::write_parquet()`.
 #'
 #' @param neuro_vec_obj A `neuroim2::NeuroVec` object.
 #' @param output_parquet_path Path to the Parquet file to create.
@@ -13,10 +15,10 @@
 #' @param run_id Optional run identifier.
 #' @param ... Additional arguments reserved for future extensions.
 #'
-#' @return A list containing the extracted `NeuroSpace`, the voxel data,
-#'   and the generated Arrow table. The return value is primarily for
-#'   testing purposes and should not be considered part of the final
-#'   API.
+#' @return A list containing the extracted `NeuroSpace`, the voxel data and
+#'   the generated Arrow table. The Parquet file is written to
+#'   `output_parquet_path`. The return value is primarily for testing and
+#'   should not be considered part of the final API.
 #' @export
 neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
                              subject_id, session_id = NULL,
@@ -62,6 +64,14 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
 
   arrow_tbl <- arrow::arrow_table(voxel_data)
   arrow_tbl <- dplyr::arrange(arrow_tbl, zindex)
+
+  arrow::write_parquet(
+    arrow_tbl,
+    output_parquet_path,
+    row_group_size = 4096,
+    compression = "zstd",
+    write_statistics = TRUE
+  )
 
   list(
     neuro_vec_obj = neuro_vec_obj,
