@@ -34,3 +34,21 @@ test_that("input validation", {
 
 })
 
+test_that("adjacent indices are neighbors", {
+  nbits <- 4
+  n <- 2^nbits
+  coords <- expand.grid(x = 0:(n - 1), y = 0:(n - 1), z = 0:(n - 1))
+  idx <- compute_hindex_cpp(coords$x, coords$y, coords$z, nbits)
+  sorted <- coords[order(idx), ]
+  dists <- sapply(2:nrow(sorted), function(i) {
+    sum(abs(sorted[i, ] - sorted[i - 1, ]))
+  })
+  expect_true(all(dists == 1))
+})
+
+test_that("single point wrapper works", {
+  val <- hilbert3D_single(1, 2, 3, 4)
+  direct <- compute_hindex_cpp(1L, 2L, 3L, 4L)
+  expect_equal(val, direct)
+})
+
