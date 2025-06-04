@@ -53,3 +53,7 @@ test_that("approximate filtering returns at least as many rows", {
   approx_res <- read_fpar_coords_roi(tmp, c(0, 1), c(0, 1), c(0, 0), exact = FALSE)
   expect_true(nrow(as.data.frame(approx_res)) >= nrow(as.data.frame(exact_res)))
 })
+
+test_that("oversized max_coord_bits rejected", {
+  expect_error(read_fpar_coords_roi(tmp, 0, 0, 0, max_coord_bits = 11))
+})

@@ -1,3 +1,4 @@
+
 library(testthat)
 
 context("extract_neurospace_metadata")
@@ -27,5 +28,15 @@ test_that("metadata fields are populated", {
 test_that("optional parameters propagate", {
   expect_equal(md$spatial_properties$reference_space, "TESTSPACE")
   expect_equal(md$acquisition_properties$repetition_time_s, 2)
+})
+
+
+test_that("voxel_size_mm always length three", {
+  skip_if_not_installed("neuroim2")
+  space <- neuroim2::NeuroSpace(dim = c(2, 2, 2, 1), spacing = c(2))
+  arr <- array(1, dim = c(2, 2, 2, 1))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+  md <- fmriarrow:::extract_neurospace_metadata(nv)
+  expect_equal(length(md$spatial_properties$voxel_size_mm), 3)
 })
 

@@ -7,13 +7,18 @@
 #' @param reference_space Optional reference space identifier.
 #' @param repetition_time Optional repetition time in seconds.
 #'
-#' @return A metadata list following the proposal specification.
+#' @return A metadata list following the proposal specification. The
+#'   `voxel_size_mm` field always contains exactly three numeric values;
+#'   if the source `NeuroSpace` has fewer spacing elements they are
+#'   recycled to length three.
 #' @noRd
 extract_neurospace_metadata <- function(neuro_vec_obj,
                                         reference_space = NULL,
                                         repetition_time = NULL) {
   s <- neuroim2::space(neuro_vec_obj)
   spacing_vec <- neuroim2::spacing(s)
+  # Recycle or truncate to always return a three-element spacing vector
+  spacing_vec <- rep(spacing_vec, length.out = 3)
 
   list(
     metadata_schema_version = "2.0.0",
@@ -23,7 +28,7 @@ extract_neurospace_metadata <- function(neuro_vec_obj,
     ),
     spatial_properties = list(
       original_dimensions = as.integer(dim(s)),
-      voxel_size_mm = as.numeric(spacing_vec[1:min(3, length(spacing_vec))]),
+      voxel_size_mm = as.numeric(spacing_vec),
       affine_matrix = as.matrix(neuroim2::trans(s)),
       reference_space = reference_space %||% "unknown",
       coordinate_convention = "0-based RAS"
