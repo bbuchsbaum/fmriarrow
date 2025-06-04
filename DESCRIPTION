@@ -17,7 +17,8 @@ Depends:
 Imports:
     arrow (>= 10.0.0),
     dplyr (>= 1.0.0),
-    neuroim2 (>= 0.1.0)
+    neuroim2 (>= 0.1.0),
+    jsonlite
 Suggests:
     testthat (>= 3.0.0),
     knitr,

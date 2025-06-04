@@ -22,7 +22,8 @@
 #' @export
 neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
                              subject_id, session_id = NULL,
-                             task_id = NULL, run_id = NULL, ...) {
+                             task_id = NULL, run_id = NULL,
+                             reference_space = NULL, ...) {
   if (!inherits(neuro_vec_obj, "NeuroVec")) {
     stop("neuro_vec_obj must inherit from 'NeuroVec'")
   }
@@ -33,6 +34,17 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   if (length(dims) < 3) {
     stop("NeuroSpace must have at least 3 spatial dimensions")
   }
+
+  spacing <- neuroim2::spacing(space_obj)
+  aff <- neuroim2::trans(space_obj)
+  metadata_list <- list(
+    metadata_schema_version = "0.1.0",
+    original_dimensions = dims,
+    voxel_size_mm = spacing[seq_len(min(3, length(spacing)))],
+    affine_matrix = aff,
+    reference_space = reference_space
+  )
+  metadata_json <- jsonlite::toJSON(metadata_list, auto_unbox = TRUE)
 
   n_vox <- prod(dims[1:3])
   x <- integer(n_vox)
@@ -70,7 +82,8 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     output_parquet_path,
     row_group_size = 4096,
     compression = "zstd",
-    write_statistics = TRUE
+    write_statistics = TRUE,
+    metadata = list(spatial_metadata = metadata_json)
   )
 
   list(
@@ -82,6 +95,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     run_id = run_id,
     space = space_obj,
     voxel_data = voxel_data,
-    arrow_table = arrow_tbl
+    arrow_table = arrow_tbl,
+    metadata = metadata_list
   )
 }
