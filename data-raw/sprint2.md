@@ -16,7 +16,7 @@
 
 ## Sprint 2 Tasks
 
-### **`[CORE-007]` Extract Core Metadata from `NeuroSpace`**
+### **`[SPRINT2-001]` Extract Core Metadata from `NeuroSpace`**
 
 **Purpose:** Enhance `neurovec_to_fpar()` to extract comprehensive spatial metadata from `neuroim2::NeuroSpace` objects.
 
@@ -58,7 +58,7 @@
 - Metadata structure matches proposal specification
 - Function handles missing/optional metadata gracefully
 
-### **`[CORE-008]` Embed Metadata into Parquet File**
+### **`[SPRINT2-002]` Embed Metadata into Parquet File**
 
 **Purpose:** Store the extracted metadata as Parquet schema metadata for later retrieval.
 
@@ -98,7 +98,7 @@
 - No impact on file reading performance  
 - Metadata survives round-trip (write → read → extract)
 
-### **`[CORE-009]` Implement Parquet Metadata Retrieval Function**
+### **`[SPRINT2-003]` Implement Parquet Metadata Retrieval Function**
 
 **Purpose:** Create standalone function to extract and parse metadata from existing `.fpar` files.
 
@@ -140,7 +140,7 @@
 - Test with corrupted/invalid JSON
 - Verify numeric arrays and matrices reconstruct correctly
 
-### **`[CORE-010]` Implement Basic Z-Index Range Query Function**
+### **`[SPRINT2-004]` Implement Basic Z-Index Range Query Function**
 
 **Purpose:** Create the foundational spatial query function using Z-index ranges and Parquet predicate pushdown.
 
@@ -182,7 +182,7 @@
 - Test column selection functionality
 - Edge cases: empty results, invalid ranges
 
-### **`[CORE-011]` Helper for Coordinate-to-Z-Index Range Conversion**
+### **`[SPRINT2-005]` Helper for Coordinate-to-Z-Index Range Conversion**
 
 **Purpose:** Bridge between user-friendly coordinate queries and efficient Z-index filtering.
 
@@ -218,7 +218,7 @@
 *   **Helper Functions:** `normalize_coord_range()`, `validate_coord_bounds()`
 *   **Documentation:** Clear explanation of "overestimation" - may include extra voxels outside exact cuboid
 
-### **`[CORE-012]` Implement Query by Voxel Coordinates (Cuboid ROI)**
+### **`[SPRINT2-006]` Implement Query by Voxel Coordinates (Cuboid ROI)**
 
 **Purpose:** User-facing function for spatial ROI queries with coordinate-based interface.
 
