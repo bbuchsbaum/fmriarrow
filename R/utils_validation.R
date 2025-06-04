@@ -8,8 +8,10 @@ validate_parquet_path <- function(path, mode = "read") {
     stop("parquet_path must be a single string")
   }
   
-  if (mode == "read" && !file.exists(path)) {
-    stop("Parquet file does not exist: ", path)
+  if (mode == "read") {
+    if (!file.exists(path) && !dir.exists(path)) {
+      stop("Parquet file or directory does not exist: ", path)
+    }
   }
   
   if (mode == "write") {
