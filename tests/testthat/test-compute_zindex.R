@@ -24,4 +24,7 @@ test_that("vectorized input works", {
 test_that("input validation", {
   expect_error(compute_zindex(-1, 0, 0))
   expect_error(compute_zindex(0, 0, 1024, max_coord_bits = 10))
+  expect_error(compute_zindex(0.5, 0, 0))
+  expect_error(compute_zindex(0, 0, 0, max_coord_bits = 0))
+  expect_error(compute_zindex(0, 0, 0, max_coord_bits = 31))
 })
