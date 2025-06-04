@@ -1,0 +1,25 @@
+Package: fmriarrow
+Type: Package
+Title: Fast, Spatially-Aware fMRI Data Access using Apache Arrow/Parquet
+Version: 0.1.0
+Authors@R: 
+    person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Description: An optimized fMRI data format using Apache Arrow/Parquet for fast, 
+    spatially-aware time series access. Converts neuroim2 NeuroVec objects to 
+    Z-order indexed Parquet files for efficient spatial querying without loading 
+    entire 4D volumes into memory.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.0
+Depends:
+    R (>= 4.0.0)
+Imports:
+    arrow (>= 10.0.0),
+    dplyr (>= 1.0.0),
+    neuroim2 (>= 0.1.0)
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
