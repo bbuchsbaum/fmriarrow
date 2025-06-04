@@ -17,6 +17,7 @@ test_that("basic invocation", {
 
 test_that("voxel extraction works", {
   skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
 
   space <- neuroim2::NeuroSpace(c(2,2,1,2))
   arr <- array(seq_len(prod(c(2,2,1,2))), dim = c(2,2,1,2))
@@ -29,4 +30,20 @@ test_that("voxel extraction works", {
   expect_equal(length(df$bold[[1]]), 2)
   expect_true(all(df$x >= 0 & df$y >= 0 & df$z >= 0))
   expect_equal(sort(unique(df$zindex)), c(0L,1L,2L,3L))
+})
+
+test_that("arrow table is sorted by zindex", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  space <- neuroim2::NeuroSpace(c(2,2,1,2))
+  arr <- array(seq_len(prod(c(2,2,1,2))), dim = c(2,2,1,2))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+
+  res <- neurovec_to_fpar(nv, tempfile(), "sub01")
+  tbl <- res$arrow_table
+
+  expect_true(inherits(tbl, "Table"))
+  df <- as.data.frame(tbl)
+  expect_equal(df$zindex, sort(df$zindex))
 })
