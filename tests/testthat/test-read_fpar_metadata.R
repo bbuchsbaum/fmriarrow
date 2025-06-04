@@ -25,3 +25,9 @@ test_that("metadata fields round trip", {
   expect_length(md$data_integrity$bold_value_range, 2)
   expect_true(all(is.finite(md$data_integrity$bold_value_range)))
 })
+
+test_that("warning for non-standard extension", {
+  tmp2 <- tempfile(fileext = ".data")
+  file.copy(tmp, tmp2)
+  expect_warning(read_fpar_metadata(tmp2), "File extension should")
+})
