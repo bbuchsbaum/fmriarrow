@@ -35,18 +35,19 @@ coords_to_zindex_range <- function(x_range, y_range, z_range,
   max_coord <- (2^max_coord_bits) - 1L
   validate_coord_bounds(c(x_range, y_range, z_range), max_coord)
 
-  corners <- expand.grid(
-    x = c(x_range[1], x_range[2]),
-    y = c(y_range[1], y_range[2]),
-    z = c(z_range[1], z_range[2])
-  )
-
-  zindices <- compute_zindex(
-    corners$x,
-    corners$y,
-    corners$z,
+  min_z <- compute_zindex(
+    x_range[1],
+    y_range[1],
+    z_range[1],
     max_coord_bits = max_coord_bits
   )
 
-  list(min_zindex = min(zindices), max_zindex = max(zindices))
+  max_z <- compute_zindex(
+    x_range[2],
+    y_range[2],
+    z_range[2],
+    max_coord_bits = max_coord_bits
+  )
+
+  list(min_zindex = min_z, max_zindex = max_z)
 }
