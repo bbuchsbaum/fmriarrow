@@ -13,9 +13,10 @@
 #' @param run_id Optional run identifier.
 #' @param ... Additional arguments reserved for future extensions.
 #'
-#' @return A list containing the extracted `NeuroSpace` object and the
-#'   supplied identifiers. The return value is primarily for testing
-#'   purposes and should not be considered part of the final API.
+#' @return A list containing the extracted `NeuroSpace`, the voxel data,
+#'   and the generated Arrow table. The return value is primarily for
+#'   testing purposes and should not be considered part of the final
+#'   API.
 #' @export
 neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
                              subject_id, session_id = NULL,
@@ -59,6 +60,9 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   )
   voxel_data$bold <- I(bold)
 
+  arrow_tbl <- arrow::arrow_table(voxel_data)
+  arrow_tbl <- dplyr::arrange(arrow_tbl, zindex)
+
   list(
     neuro_vec_obj = neuro_vec_obj,
     output_parquet_path = output_parquet_path,
@@ -67,6 +71,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     task_id = task_id,
     run_id = run_id,
     space = space_obj,
-    voxel_data = voxel_data
+    voxel_data = voxel_data,
+    arrow_table = arrow_tbl
   )
 }
