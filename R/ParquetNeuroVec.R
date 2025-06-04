@@ -77,33 +77,32 @@ ParquetNeuroVec <- function(parquet_path, lazy = TRUE) {
     trans = affine_mat
   )
   
-  # Create empty data array (will be populated lazily)
+  # Create data array
   if (lazy) {
-    # Create a minimal placeholder array
+    # Minimal placeholder for lazy loading
     empty_data <- array(NA_real_, dim = c(1, 1, 1, 1))
   } else {
-    # Load full data (for smaller datasets)
-    data_table <- arrow::read_parquet(parquet_path)
-    data_table <- data_table |> dplyr::arrange(zindex)
-    
-    # Reconstruct 4D array
+    # Load full data eagerly
+    data_table <- arrow::read_parquet(parquet_path) |>
+      dplyr::arrange(zindex)
+
     bold_matrix <- do.call(rbind, data_table$bold)
     empty_data <- array(NA_real_, dim = dims)
-    
-    # Fill array using coordinate information
-    coords_matrix <- as.matrix(data_table[, c("x", "y", "z")])
-    coords_matrix <- coords_matrix + 1  # Convert 0-based to 1-based
-    
-    for (i in seq_len(nrow(coords_matrix))) {
-      x <- coords_matrix[i, 1]
-      y <- coords_matrix[i, 2] 
-      z <- coords_matrix[i, 3]
-      empty_data[x, y, z, ] <- bold_matrix[i, ]
+
+    coords_matrix <- as.matrix(data_table[, c("x", "y", "z")]) + 1
+
+    for (idx in seq_len(nrow(coords_matrix))) {
+      empty_data[
+        coords_matrix[idx, 1],
+        coords_matrix[idx, 2],
+        coords_matrix[idx, 3],
+        ] <- bold_matrix[idx, ]
     }
   }
   
   # Create the object using new()
   obj <- new("ParquetNeuroVec",
+    data = empty_data,
     space = neuro_space,
     label = basename(parquet_path),
     parquet_path = parquet_path,
@@ -140,9 +139,10 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "integer"),
       stop("Coordinates out of bounds")
     }
     
-    # Query the specific voxel from Parquet file
+    # Query the specific voxel using its Z-order index
+    z_idx <- compute_zindex(x_coord, y_coord, z_coord)
     data_table <- arrow::open_dataset(x@parquet_path) |>
-      dplyr::filter(x == x_coord, y == y_coord, z == z_coord) |>
+      dplyr::filter(zindex == z_idx) |>
       dplyr::collect()
     
     if (nrow(data_table) == 0) {
@@ -193,42 +193,46 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
     if (ncol(i) != 3) {
       stop("Coordinate matrix must have 3 columns (x, y, z)")
     }
-    
+
     # Convert 1-based to 0-based coordinates
     coords_0based <- i - 1
-    
+
+    dims <- x@metadata$spatial_properties$original_dimensions
+    if (any(coords_0based[, 1] < 0 | coords_0based[, 1] >= dims[1] |
+            coords_0based[, 2] < 0 | coords_0based[, 2] >= dims[2] |
+            coords_0based[, 3] < 0 | coords_0based[, 3] >= dims[3])) {
+      stop("Coordinates out of bounds")
+    }
+
     # Create coordinate ranges for efficient querying
     x_range <- range(coords_0based[, 1])
     y_range <- range(coords_0based[, 2])
     z_range <- range(coords_0based[, 3])
-    
-    # Query broader region then filter to exact coordinates
+
     data_table <- read_fpar_coords_roi(
-      x@parquet_path, 
+      x@parquet_path,
       x_range = x_range,
-      y_range = y_range, 
+      y_range = y_range,
       z_range = z_range,
       exact = TRUE,
       columns = c("x", "y", "z", "bold")
     ) |> dplyr::collect()
-    
-    # Match coordinates and extract series
-    result_matrix <- matrix(NA_real_, 
+
+    table_keys <- paste(data_table$x, data_table$y, data_table$z, sep = "_")
+    query_keys <- paste(coords_0based[, 1], coords_0based[, 2], coords_0based[, 3], sep = "_")
+    match_idx <- match(query_keys, table_keys)
+
+    result_matrix <- matrix(NA_real_,
                            nrow = x@metadata$acquisition_properties$timepoint_count,
                            ncol = nrow(i))
-    
-    for (idx in seq_len(nrow(i))) {
-      coord_match <- data_table |>
-        dplyr::filter(x == coords_0based[idx, 1], 
-                     y == coords_0based[idx, 2], 
-                     z == coords_0based[idx, 3])
-      
-      if (nrow(coord_match) > 0) {
-        result_matrix[, idx] <- coord_match$bold[[1]]
-      }
+
+    valid <- which(!is.na(match_idx))
+    if (length(valid) > 0) {
+      bold_mat <- do.call(rbind, data_table$bold[match_idx[valid]])
+      result_matrix[, valid] <- t(bold_mat)
     }
-    
-    return(result_matrix)
+
+    result_matrix
   }
 )
 
@@ -244,6 +248,13 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
 #' 
 setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "integer"),
   function(x, i, j, k) {
+    dims <- x@metadata$spatial_properties$original_dimensions
+    if (any(i < 1 | i > dims[1]) ||
+        any(j < 1 | j > dims[2]) ||
+        any(k < 1 | k > dims[3])) {
+      stop("Coordinates out of bounds")
+    }
+
     # Convert 1-based to 0-based coordinates
     x_range <- range(i) - 1
     y_range <- range(j) - 1
@@ -391,23 +402,16 @@ setMethod("[", signature(x = "ParquetNeuroVec"),
     result_dims <- c(length(i), length(j), length(k), length(l))
     result_array <- array(NA_real_, dim = result_dims)
     
-    # Fill result array
-    for (row_idx in seq_len(nrow(data_table))) {
-      row_data <- data_table[row_idx, ]
-      
-      # Convert back to 1-based indexing
-      x_pos <- row_data$x + 1
-      y_pos <- row_data$y + 1
-      z_pos <- row_data$z + 1
-      
-      # Find positions in result array
-      x_idx <- which(i == x_pos)
-      y_idx <- which(j == y_pos)
-      z_idx <- which(k == z_pos)
-      
-      if (length(x_idx) > 0 && length(y_idx) > 0 && length(z_idx) > 0) {
-        bold_series <- row_data$bold[[1]]
-        result_array[x_idx, y_idx, z_idx, l] <- bold_series[l]
+    # Pre-compute index vectors
+    x_idx <- match(data_table$x + 1, i)
+    y_idx <- match(data_table$y + 1, j)
+    z_idx <- match(data_table$z + 1, k)
+    valid <- which(!is.na(x_idx) & !is.na(y_idx) & !is.na(z_idx))
+
+    if (length(valid) > 0) {
+      bold_mat <- do.call(rbind, data_table$bold[valid])[, l, drop = FALSE]
+      for (v in seq_along(valid)) {
+        result_array[x_idx[valid[v]], y_idx[valid[v]], z_idx[valid[v]], ] <- bold_mat[v, ]
       }
     }
     
