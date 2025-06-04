@@ -153,17 +153,18 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     bold = arrow::fixed_size_list_of(arrow::float32(), timepoints)
   )
 
-  # Create Arrow table and sort by zindex
+  # Embed metadata directly in schema
+  metadata_json <- jsonlite::toJSON(metadata, auto_unbox = TRUE)
+  schema <- schema$WithMetadata(list(spatial_metadata = metadata_json))
+
+  # Create Arrow table with metadata and sort by zindex
   arrow_tbl <- arrow::arrow_table(voxel_data, schema = schema)
   arrow_tbl_sorted <- dplyr::arrange(arrow_tbl, zindex)
-  
+
   # Convert the dplyr query back to a Table
   arrow_tbl_final <- dplyr::collect(arrow_tbl_sorted, as_data_frame = FALSE)
 
-  # Prepare metadata for Parquet schema (CORE-008)
-  metadata_json <- jsonlite::toJSON(metadata, auto_unbox = TRUE)
-
-  # Write Parquet file first
+  # Write Parquet file
   arrow::write_parquet(
     arrow_tbl_final,
     output_parquet_path,
@@ -171,24 +172,11 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     write_statistics = TRUE,
     row_group_size = 4096
   )
-  
-  # Add metadata to the written file
+
+  # Also store metadata in a sidecar file for maximum compatibility
   if (file.exists(output_parquet_path)) {
-    # Try a simpler metadata approach - write to a separate metadata file for now
-    # Since the Arrow metadata approach seems to have compatibility issues
     metadata_path <- paste0(tools::file_path_sans_ext(output_parquet_path), "_metadata.json")
     writeLines(metadata_json, metadata_path)
-    
-    # Try the Arrow metadata approach as backup
-    tryCatch({
-      temp_tbl <- arrow::read_parquet(output_parquet_path, as_data_frame = FALSE)
-      metadata_kv <- list(spatial_metadata = metadata_json)
-      new_schema <- temp_tbl$schema$WithMetadata(metadata_kv)
-      new_tbl <- arrow::arrow_table(as.data.frame(temp_tbl), schema = new_schema)
-      arrow::write_parquet(new_tbl, output_parquet_path, compression = "zstd", write_statistics = TRUE, row_group_size = 4096)
-    }, error = function(e) {
-      warning("Could not embed metadata in Parquet schema: ", e$message)
-    })
   }
 
   # Return diagnostic information (primarily for testing)
