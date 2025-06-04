@@ -47,3 +47,20 @@ test_that("arrow table is sorted by zindex", {
   df <- as.data.frame(tbl)
   expect_equal(df$zindex, sort(df$zindex))
 })
+
+test_that("parquet file written and sorted", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  space <- neuroim2::NeuroSpace(c(2,2,1,2))
+  arr <- array(seq_len(prod(c(2,2,1,2))), dim = c(2,2,1,2))
+  nv <- neuroim2::DenseNeuroVec(arr, space)
+
+  tmp <- tempfile(fileext = ".parquet")
+  neurovec_to_fpar(nv, tmp, "sub01")
+
+  expect_true(file.exists(tmp))
+  tbl <- arrow::read_parquet(tmp)
+  df <- as.data.frame(tbl)
+  expect_equal(df$zindex, sort(df$zindex))
+})
