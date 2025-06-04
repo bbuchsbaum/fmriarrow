@@ -32,6 +32,18 @@ test_that("warning for non-standard extension", {
   expect_warning(read_fpar_metadata(tmp2), "File extension should")
 })
 
+test_that("metadata retrieved when sidecar missing", {
+  sidecar <- sub("\\.parquet$", "_metadata.json", tmp)
+  file.remove(sidecar)
+
+  md2 <- read_fpar_metadata(tmp)
+
+  expect_equal(md2$spatial_properties$original_dimensions, c(2L, 2L, 1L, 3L))
+  expect_equal(md2$spatial_properties$reference_space, "TESTSPACE")
+  expect_equal(md2$acquisition_properties$timepoint_count, 3L)
+})
+
+
 test_that("raw schema metadata parsed", {
   skip_if_not_installed("arrow")
 

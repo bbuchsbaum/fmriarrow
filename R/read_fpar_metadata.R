@@ -36,9 +36,9 @@ read_fpar_metadata <- function(parquet_path) {
   # Fallback to reading metadata embedded in the Parquet schema
   if (length(parsed_metadata) == 0) {
     tryCatch({
-      tbl <- arrow::read_parquet(parquet_path, as_data_frame = FALSE,
-                                 col_select = character(0))
-      schema_metadata <- tbl$schema$metadata
+      reader <- arrow::ParquetFileReader$create(parquet_path)
+      on.exit(reader$close(), add = TRUE)
+      schema_metadata <- reader$GetSchema()$metadata
 
       if (length(schema_metadata) > 0) {
         if (!is.null(schema_metadata$spatial_metadata)) {
