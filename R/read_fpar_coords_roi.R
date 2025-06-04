@@ -18,18 +18,17 @@
 #' @export
 read_fpar_coords_roi <- function(parquet_path, x_range, y_range, z_range,
                                  exact = TRUE, columns = NULL) {
-  if (!is.character(parquet_path) || length(parquet_path) != 1) {
-    stop("parquet_path must be a single string")
-  }
-  if (!file.exists(parquet_path)) {
-    stop("File does not exist: ", parquet_path)
-  }
+  validate_parquet_path(parquet_path)
   if (!is.logical(exact) || length(exact) != 1) {
     stop("exact must be a single logical value")
   }
   if (!is.null(columns) && !is.character(columns)) {
     stop("columns must be NULL or a character vector")
   }
+
+  x_range <- validate_coordinate_range(x_range, "x_range")
+  y_range <- validate_coordinate_range(y_range, "y_range")
+  z_range <- validate_coordinate_range(z_range, "z_range")
 
   zrange <- coords_to_zindex_range(x_range, y_range, z_range)
 
