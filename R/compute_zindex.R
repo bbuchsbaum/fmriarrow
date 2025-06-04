@@ -1,8 +1,11 @@
 #' Compute 3D Z-order (Morton) index
 #'
 #' Interleaves bits of the x, y and z coordinates to create a
-#' 32-bit unsigned integer Morton code. Coordinates must be
-#' non-negative integers and less than 2^`max_coord_bits`.
+#' 32-bit unsigned integer Morton code. For each bit position `i`,
+#' the corresponding masked bit is right-shifted to position 0 and
+#' then left-shifted to bit position `3*i` (and `3*i + 1`, `3*i + 2`
+#' for `y` and `z`). Coordinates must be non-negative integers and
+#' less than 2^`max_coord_bits`.
 #'
 #' @param x,y,z Integer vectors of equal length with 0-based
 #'   voxel coordinates.
@@ -30,9 +33,12 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
   res <- integer(length(x))
   for (i in 0:(max_coord_bits - 1L)) {
     mask <- bitwShiftL(1L, i)
-    res <- bitwOr(res, bitwShiftL(bitwAnd(x, mask), 3L * i))
-    res <- bitwOr(res, bitwShiftL(bitwAnd(y, mask), 3L * i + 1L))
-    res <- bitwOr(res, bitwShiftL(bitwAnd(z, mask), 3L * i + 2L))
+    xi <- bitwShiftR(bitwAnd(x, mask), i)
+    yi <- bitwShiftR(bitwAnd(y, mask), i)
+    zi <- bitwShiftR(bitwAnd(z, mask), i)
+    res <- bitwOr(res, bitwShiftL(xi, 3L * i))
+    res <- bitwOr(res, bitwShiftL(yi, 3L * i + 1L))
+    res <- bitwOr(res, bitwShiftL(zi, 3L * i + 2L))
   }
   res
 }

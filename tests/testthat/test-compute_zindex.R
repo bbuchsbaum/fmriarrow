@@ -8,6 +8,10 @@ test_that("basic zindex values", {
   expect_equal(compute_zindex(0, 1, 0), 2L)
   expect_equal(compute_zindex(0, 0, 1), 4L)
   expect_equal(compute_zindex(1, 1, 1), 7L)
+  expect_equal(compute_zindex(2, 0, 0), 8L)
+  expect_equal(compute_zindex(3, 0, 0), 9L)
+  expect_equal(compute_zindex(2, 1, 0), 10L)
+  expect_equal(compute_zindex(1, 2, 3), 53L)
 })
 
 test_that("vectorized input works", {
