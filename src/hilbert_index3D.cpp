@@ -81,6 +81,7 @@ inline void rot_inv(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
 // Convert (x,y,z) to Hilbert index
 uint64_t hilbert3D(int x, int y, int z, int nbits) {
   uint64_t index = 0;
+  int n = 1 << nbits;
   for (int i = nbits - 1; i >= 0; i--) {
     int rx = (x >> i) & 1;
     int ry = (y >> i) & 1;
@@ -89,7 +90,6 @@ uint64_t hilbert3D(int x, int y, int z, int nbits) {
     int digit = (rx << 2) | (ry << 1) | rz;
     index = (index << 3) | digit;
 
-    int n = 1 << (i + 1);
     rot(n, x, y, z, rx, ry, rz);
   }
   return index;
@@ -99,13 +99,13 @@ uint64_t hilbert3D(int x, int y, int z, int nbits) {
 void hilbert3D_inverse(uint64_t index, int nbits, int &x, int &y, int &z) {
   x = y = z = 0;
   uint64_t t = index;
+  int n = 1 << nbits;
   for (int i = 0; i < nbits; i++) {
     int digit = t & 7;
     int rx = (digit >> 2) & 1;
     int ry = (digit >> 1) & 1;
     int rz = digit & 1;
 
-    int n = 1 << (i + 1);
     rot(n, x, y, z, rx, ry, rz);
 
     x |= rx << i;
