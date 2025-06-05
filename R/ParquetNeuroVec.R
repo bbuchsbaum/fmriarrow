@@ -410,6 +410,38 @@ setMethod("dim", "ParquetNeuroVec",
   }
 )
 
+
+#' Concatenate Two ParquetNeuroVec Objects
+#'
+#' This method concatenates two `ParquetNeuroVec` objects along the time
+#' dimension and returns a new `ParquetNeuroVec`. Internally the data are
+#' converted to dense `NeuroVec` objects using `neuroim2::concat` and written
+#' back to a temporary Parquet file via `neurovec_to_fpar()`.
+#'
+#' @param x A `ParquetNeuroVec` object.
+#' @param y A `ParquetNeuroVec` object to concatenate to `x`.
+#' @param output_parquet_path Optional path for the resulting Parquet file.
+#'   If not supplied, a temporary file is created.
+#' @param ... Additional arguments passed to `neuroim2::concat`.
+#'
+#' @return A new `ParquetNeuroVec` representing the concatenated data.
+#' @export
+setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
+  function(x, y, output_parquet_path = tempfile(fileext = ".fpar"), ...) {
+    nv_x <- methods::as(x, "NeuroVec")
+    nv_y <- methods::as(y, "NeuroVec")
+
+    dense_res <- neuroim2::concat(nv_x, nv_y, ...)
+
+    neurovec_to_fpar(
+      neuro_vec_obj = dense_res,
+      output_parquet_path = output_parquet_path,
+      subject_id = "concat"
+    )
+
+    ParquetNeuroVec(output_parquet_path)
+})
+
 setMethod("as.matrix", signature(x = "ParquetNeuroVec"),
   function(x) {
     # Load all data into a 4D array
@@ -448,38 +480,3 @@ setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "integer"),
   }
 )
 
-#' @export
-#' @importFrom neuroim2 concat
-#' @rdname concat-methods
-setMethod("concat", signature(x = "ParquetNeuroVec"),
-  function(x, y, ...) {
-    # Load data from all provided ParquetNeuroVec objects
-    all_vecs <- c(list(x, y), list(...))
-    
-    all_data <- lapply(all_vecs, function(vec) {
-      if (!inherits(vec, "ParquetNeuroVec")) {
-        stop("All objects to concatenate must be ParquetNeuroVec objects")
-      }
-      vec[]
-    })
-    
-    # Concatenate along the 4th (time) dimension
-    concatenated_data <- do.call(abind::abind, c(all_data, list(along = 4)))
-    
-    # Create a new NeuroSpace for the combined data
-    old_space <- x@space
-    new_dim <- dim(old_space)
-    new_dim[4] <- dim(concatenated_data)[4]
-    
-    new_space <- neuroim2::NeuroSpace(new_dim, spacing=neuroim2::spacing(old_space), 
-                                      origin=neuroim2::origin(old_space), trans=neuroim2::trans(old_space))
-    
-    # Create a new DenseNeuroVec
-    dense_concat_vec <- neuroim2::DenseNeuroVec(concatenated_data, new_space)
-    
-    # Write to a new temp parquet file and return a ParquetNeuroVec
-    temp_path <- tempfile(fileext = ".fpar")
-    neurovec_to_fpar(dense_concat_vec, temp_path, subject_id="temp")
-    ParquetNeuroVec(temp_path)
-  }
-)
