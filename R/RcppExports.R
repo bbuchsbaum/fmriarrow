@@ -5,11 +5,11 @@ compute_zindex_cpp <- function(x, y, z, max_coord_bits = 10L) {
     .Call(`_fmriarrow_compute_zindex_cpp`, x, y, z, max_coord_bits)
 }
 
-compute_hindex_cpp <- function(x, y, z, max_coord_bits) {
-    .Call(`_fmriarrow_compute_hindex_cpp`, x, y, z, max_coord_bits)
+compute_hindex_cpp <- function(x, y, z, nbits) {
+    .Call(`_fmriarrow_compute_hindex_cpp`, x, y, z, nbits)
 }
 
-compute_hindex_cpp_inverse <- function(h_indices, max_coord_bits) {
-    .Call(`_fmriarrow_compute_hindex_cpp_inverse`, h_indices, max_coord_bits)
+compute_hindex_cpp_inverse <- function(h_indices, nbits) {
+    .Call(`_fmriarrow_compute_hindex_cpp_inverse`, h_indices, nbits)
 }
 
