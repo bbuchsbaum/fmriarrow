@@ -9,6 +9,8 @@
 #' spatial indexing for efficient querying while maintaining full compatibility with
 #' neuroim2 workflows.
 #' 
+#' @importFrom neuroim2 series series_roi
+#' 
 #' @slot parquet_path character. Path to the .fpar file.
 #' @slot metadata list. Cached metadata from the Parquet file.
 #' @slot lazy logical. Whether to use lazy loading for data access.
@@ -102,7 +104,6 @@ ParquetNeuroVec <- function(parquet_path, lazy = TRUE) {
   
   # Create the object using new()
   obj <- new("ParquetNeuroVec",
-    data = empty_data,
     space = neuro_space,
     label = basename(parquet_path),
     parquet_path = parquet_path,
@@ -236,7 +237,7 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
   }
 )
 
-#' Extract ROI Time Series from ParquetNeuroVec
+#' Extract ROI Time Series from ParquetNeuroVec based on a bounding box
 #' 
 #' @param x ParquetNeuroVec object
 #' @param i integer. x-coordinate range or single coordinate
@@ -245,62 +246,49 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
 #' 
 #' @return numeric vector. Average time series across the ROI
 #' @export
-#' 
-setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "integer"),
+setGeneric("series_roi_bbox", function(x, i, j, k) {
+  standardGeneric("series_roi_bbox")
+})
+
+#' @rdname series_roi_bbox-methods
+#' @export
+setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "integer", j = "integer", k = "integer"),
   function(x, i, j, k) {
     dims <- x@metadata$spatial_properties$original_dimensions
-    if (any(i < 1 | i > dims[1]) ||
-        any(j < 1 | j > dims[2]) ||
-        any(k < 1 | k > dims[3])) {
-      stop("Coordinates out of bounds")
+    
+    validate_coord <- function(val, name, max_val) {
+      if (any(val < 1) || any(val > max_val)) {
+        stop(paste0(name, " coordinates are out of bounds"))
+      }
+      range(val) 
     }
+    
+    x_range <- validate_coord(i, "x", dims[1])
+    y_range <- validate_coord(j, "y", dims[2])
+    z_range <- validate_coord(k, "z", dims[3])
 
-    # Convert 1-based to 0-based coordinates
-    x_range <- range(i) - 1
-    y_range <- range(j) - 1
-    z_range <- range(k) - 1
-    
-    # Query ROI from Parquet file
-    roi_data <- read_fpar_coords_roi(
+    data_table <- read_fpar_coords_roi(
       x@parquet_path,
-      x_range = x_range,
-      y_range = y_range,
-      z_range = z_range,
-      exact = TRUE,
-      columns = c("bold")
-    ) |> dplyr::collect()
+      x_range = x_range - 1, # to 0-based
+      y_range = y_range - 1,
+      z_range = z_range - 1,
+      columns = "bold"
+    )
     
-    if (nrow(roi_data) == 0) {
-      # Return NA vector if no voxels found in ROI
-      n_timepoints <- x@metadata$acquisition_properties$timepoint_count
-      return(rep(NA_real_, n_timepoints))
+    if (nrow(data_table) == 0) {
+      return(rep(0, x@metadata$acquisition_properties$timepoint_count))
     }
     
-    # Extract all BOLD time series and compute mean
-    bold_matrix <- do.call(rbind, roi_data$bold)
-    roi_mean <- colMeans(bold_matrix, na.rm = TRUE)
-    
-    return(roi_mean)
+    # Compute mean time series across all voxels in the ROI
+    bold_matrix <- do.call(rbind, data_table$bold)
+    colMeans(bold_matrix)
   }
 )
 
-#' Extract ROI Time Series Using Matrix Coordinates
-#' 
-#' @param x ParquetNeuroVec object  
-#' @param i matrix. Matrix with 3 columns (x, y, z coordinates, 1-based)
-#' 
-#' @return numeric vector. Average time series across the ROI
-#' @export
-#' 
-setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "matrix"),
-  function(x, i) {
-    # Get individual time series for all coordinates
-    series_matrix <- series(x, i)
-    
-    # Compute mean across voxels (columns)
-    roi_mean <- rowMeans(series_matrix, na.rm = TRUE)
-    
-    return(roi_mean)
+#' @rdname series_roi_bbox-methods
+setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "numeric", j = "numeric", k = "numeric"),
+  function(x, i, j, k) {
+    series_roi_bbox(x, as.integer(i), as.integer(j), as.integer(k))
   }
 )
 
@@ -359,69 +347,42 @@ setMethod("show", "ParquetNeuroVec",
   }
 )
 
-#' Array Subsetting for ParquetNeuroVec
-#' 
-#' Provides array-like access to the ParquetNeuroVec object
-#' 
-#' @param x ParquetNeuroVec object
-#' @param i index for first dimension (x)
-#' @param j index for second dimension (y) 
-#' @param k index for third dimension (z)
-#' @param l index for fourth dimension (time)
-#' @param drop logical. Whether to drop dimensions
-#' 
-#' @return array or vector depending on indices and drop parameter
-#' @export
-#' 
-setMethod("[", signature(x = "ParquetNeuroVec"),
-  function(x, i, j, k, l, drop = TRUE) {
-    # Handle missing indices - use full ranges
-    dims <- x@metadata$spatial_properties$original_dimensions
-    
-    if (missing(i)) i <- seq_len(dims[1])
-    if (missing(j)) j <- seq_len(dims[2])
-    if (missing(k)) k <- seq_len(dims[3])
-    if (missing(l)) l <- seq_len(dims[4])
-    
-    # Convert 1-based to 0-based for querying
-    x_range <- range(i) - 1
-    y_range <- range(j) - 1
-    z_range <- range(k) - 1
-    
-    # Query data from Parquet
-    data_table <- read_fpar_coords_roi(
-      x@parquet_path,
-      x_range = x_range,
-      y_range = y_range,
-      z_range = z_range,
-      exact = TRUE,
-      columns = c("x", "y", "z", "bold")
-    ) |> dplyr::collect()
-    
-    # Initialize result array
-    result_dims <- c(length(i), length(j), length(k), length(l))
-    result_array <- array(NA_real_, dim = result_dims)
-    
-    # Pre-compute index vectors
-    x_idx <- match(data_table$x + 1, i)
-    y_idx <- match(data_table$y + 1, j)
-    z_idx <- match(data_table$z + 1, k)
-    valid <- which(!is.na(x_idx) & !is.na(y_idx) & !is.na(z_idx))
+.load_data_to_array <- function(x) {
+  data_table <- arrow::read_parquet(x@parquet_path)
+  
+  # Ensure order for correct reconstruction
+  data_table <- dplyr::arrange(data_table, zindex)
+  
+  bold_matrix <- do.call(rbind, data_table$bold)
+  
+  arr <- array(NA_real_, dim = dim(x@space))
+  
+  # Get 0-based coordinates and convert to 1-based for array indexing
+  coords_matrix <- as.matrix(data_table[, c("x", "y", "z")]) + 1
+  
+  for (idx in seq_len(nrow(coords_matrix))) {
+    arr[
+      coords_matrix[idx, 1],
+      coords_matrix[idx, 2],
+      coords_matrix[idx, 3],
+    ] <- bold_matrix[idx, ]
+  }
+  
+  arr
+}
 
-    if (length(valid) > 0) {
-      bold_mat <- do.call(rbind, data_table$bold[valid])[, l, drop = FALSE]
-      for (v in seq_along(valid)) {
-        result_array[x_idx[valid[v]], y_idx[valid[v]], z_idx[valid[v]], ] <- bold_mat[v, ]
-      }
+setMethod("[", signature(x = "ParquetNeuroVec"),
+  function(x, i, j, k, ..., drop = TRUE) {
+    # This is a simple but inefficient implementation that loads all data.
+    data_arr <- .load_data_to_array(x)
+    
+    # Handle the case where no indices are provided, returning the full array
+    if (missing(i) && missing(j) && missing(k) && missing(..1)) {
+       return(data_arr)
     }
     
-    # Apply drop only if all dimensions are of length 1, or for specific cases
-    # Don't drop dimensions automatically for 4D neuro data
-    if (drop && all(result_dims == 1)) {
-      result_array <- drop(result_array)
-    }
-    
-    return(result_array)
+    # Pass subsetting to the underlying array
+    data_arr[i, j, k, ..., drop = drop]
   }
 )
 
@@ -448,6 +409,7 @@ setMethod("dim", "ParquetNeuroVec",
     return(x@metadata$spatial_properties$original_dimensions)
   }
 )
+
 
 #' Concatenate Two ParquetNeuroVec Objects
 #'
@@ -478,5 +440,43 @@ setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
     )
 
     ParquetNeuroVec(output_parquet_path)
+})
+
+setMethod("as.matrix", signature(x = "ParquetNeuroVec"),
+  function(x) {
+    # Load all data into a 4D array
+    arr <- x[]
+    
+    # Reshape to a 2D matrix (voxels x time)
+    mat_dims <- c(prod(dim(x)[1:3]), dim(x)[4])
+    dim(arr) <- mat_dims
+    
+    arr
   }
 )
+
+#' @export
+#' @rdname sub_vector-methods
+setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "integer"),
+  function(x, i) {
+    # Subset the data along the time dimension
+    sub_arr <- x[,,,i, drop=FALSE]
+    
+    # Create a new NeuroSpace with updated dimensions
+    old_space <- x@space
+    new_dim <- dim(old_space)
+    new_dim[4] <- length(i)
+    
+    new_space <- neuroim2::NeuroSpace(new_dim, spacing=neuroim2::spacing(old_space), 
+                                      origin=neuroim2::origin(old_space), trans=neuroim2::trans(old_space))
+    
+    # Create a new DenseNeuroVec from the subset
+    dense_sub_vec <- neuroim2::DenseNeuroVec(sub_arr, new_space)
+    
+    # Write to a new temp parquet file and return a ParquetNeuroVec
+    temp_path <- tempfile(fileext = ".fpar")
+    neurovec_to_fpar(dense_sub_vec, temp_path, subject_id="temp")
+    ParquetNeuroVec(temp_path)
+  }
+)
+

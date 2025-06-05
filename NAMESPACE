@@ -28,6 +28,8 @@ export(benchmark_zindex)
 
 # Export ParquetNeuroVec class and methods
 export(ParquetNeuroVec)
+export(as_parquet_neurovec)
+export(read_arrow)
 exportClasses(ParquetNeuroVec)
 exportMethods(series)
 exportMethods(series_roi)

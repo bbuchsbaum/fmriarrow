@@ -39,22 +39,33 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
     stop("coordinates exceed range defined by max_coord_bits")
   }
 
-  x <- as.integer(x)
-  y <- as.integer(y)
-  z <- as.integer(z)
-
-  compute_zindex_cpp(x, y, z, max_coord_bits)
-
-  res <- integer(length(x))
+  x <- as.double(x)
+  y <- as.double(y)
+  z <- as.double(z)
+  
+  res <- numeric(length(x))
   for (i in 0:(max_coord_bits - 1L)) {
     mask <- bitwShiftL(1L, i)
-    xi <- bitwShiftR(bitwAnd(x, mask), i)
-    yi <- bitwShiftR(bitwAnd(y, mask), i)
-    zi <- bitwShiftR(bitwAnd(z, mask), i)
-    res <- bitwOr(res, bitwShiftL(xi, 3L * i))
-    res <- bitwOr(res, bitwShiftL(yi, 3L * i + 1L))
-    res <- bitwOr(res, bitwShiftL(zi, 3L * i + 2L))
+    # Right-shift to get the i-th bit
+    xi <- floor(bitwAnd(x, mask) / 2^i)
+    yi <- floor(bitwAnd(y, mask) / 2^i)
+    zi <- floor(bitwAnd(z, mask) / 2^i)
+    
+    # Left-shift using multiplication and add to result
+    res <- res + xi * (2^(3 * i))
+    res <- res + yi * (2^(3 * i + 1))
+    res <- res + zi * (2^(3 * i + 2))
   }
-  res
+  
+  as.integer(res)
+}
 
+validate_max_coord_bits <- function(max_coord_bits) {
+  if (!is.numeric(max_coord_bits) || length(max_coord_bits) != 1 ||
+      is.na(max_coord_bits) || max_coord_bits != as.integer(max_coord_bits) ||
+      max_coord_bits <= 0 || max_coord_bits >= 31) {
+    stop("max_coord_bits must be a single positive integer less than 31")
+  }
+  max_coord_bits <- as.integer(max_coord_bits)
+  max_coord_bits
 }

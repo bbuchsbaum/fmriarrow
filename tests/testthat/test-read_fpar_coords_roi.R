@@ -1,4 +1,8 @@
 library(testthat)
+library(neuroim2)
+library(arrow)
+library(dplyr)
+devtools::load_all()
 
 context("read_fpar_coords_roi")
 
@@ -55,5 +59,8 @@ test_that("approximate filtering returns at least as many rows", {
 })
 
 test_that("oversized max_coord_bits rejected", {
-  expect_error(read_fpar_coords_roi(tmp, 0, 0, 0, max_coord_bits = 11))
+  expect_error(
+    read_fpar_coords_roi(tmp, x_range = c(0, 1024), y_range = 0, z_range = 0, max_coord_bits = 10),
+    "exceeds range defined by max_coord_bits"
+  )
 })

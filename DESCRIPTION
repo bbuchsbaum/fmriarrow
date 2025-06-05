@@ -20,7 +20,12 @@ Imports:
     neuroim2 (>= 0.1.0),
     digest,
     jsonlite,
-    Rcpp (>= 1.0.5)
+    Rcpp (>= 1.0.5),
+    assertthat,
+    methods,
+    purrr,
+    rlang,
+    abind
 LinkingTo:
     Rcpp
 Suggests:

@@ -1,4 +1,5 @@
 library(testthat)
+devtools::load_all()
 
 context("coords_to_zindex_range")
 
@@ -51,5 +52,8 @@ test_that("invalid ranges trigger errors", {
 })
 
 test_that("oversized max_coord_bits fails", {
-  expect_error(coords_to_zindex_range(0, 0, 0, max_coord_bits = 11))
+  expect_error(
+    coords_to_zindex_range(c(0, 1024), 0, 0, max_coord_bits = 10),
+    "exceeds range defined by max_coord_bits"
+  )
 })
