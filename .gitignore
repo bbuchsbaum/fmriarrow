@@ -9,5 +9,7 @@
 # fmriarrow specific
 repomix-output.xml
 *.so
-*.o 
+*.o
 .claude
+src/*.o
+src/*.so
