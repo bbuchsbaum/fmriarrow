@@ -1,0 +1,13 @@
+# R
+*.Rhistory
+*.Rapp.history
+*.RData
+*.Ruserdata
+*.Rproj.user/
+.Renviron
+
+# fmriarrow specific
+repomix-output.xml
+*.so
+*.o 
+.claude

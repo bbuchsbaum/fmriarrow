@@ -1,227 +1,146 @@
 #include <Rcpp.h>
-#include <cstdlib>
-#include <cerrno>
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-using namespace Rcpp;
+#include <cmath>
+#include <vector>
+#include <numeric>
 
-// Helper: rotate and flip a quadrant appropriately
-// Rotate and flip a quadrant according to canonical 3D Hilbert rules
-inline void rot(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
-  if (rz == 0) {
-    if (ry == 0) {
-      if (rx == 1) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-      std::swap(x, y);
-    } else {
-      if (rx == 0) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-    }
-    std::swap(y, z);
-  } else {
-    if (ry == 1) {
-      if (rx == 1) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-      std::swap(x, y);
-    } else {
-      if (rx == 0) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-    }
-  }
+// --- Bitwise Helper Functions ---
+
+// Computes the binary reflected Gray code of an integer.
+inline uint64_t gray_code(uint64_t i) {
+    return i ^ (i >> 1);
 }
 
-// Inverse rotation - undoes the effect of rot()
-inline void rot_inv(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
-  // We need to undo rot() operations in reverse order
-  if (rz == 0) {
-    // rot() does operations then swap(y,z), so we swap(y,z) first
-    std::swap(y, z);
-    if (ry == 0) {
-      // rot() does flip then swap(x,y), so we swap(x,y) then flip
-      std::swap(x, y);
-      if (rx == 1) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-    } else {
-      // rot() just does flip
-      if (rx == 0) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
+// Computes the inverse of the binary reflected Gray code.
+inline uint64_t gray_code_inverse(uint64_t g) {
+    uint64_t i = g;
+    uint64_t j = 1;
+    while ((1ULL << j) <= i) {
+        i ^= (g >> j);
+        j++;
     }
-  } else {
-    // rz == 1: no swap(y,z) in rot()
-    if (ry == 1) {
-      // rot() does flip then swap(x,y), so we swap(x,y) then flip
-      std::swap(x, y);
-      if (rx == 1) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
-    } else {
-      // rot() just does flip
-      if (rx == 0) {
-        x = n - 1 - x;
-        y = n - 1 - y;
-      }
+    return i;
+}
+
+// Counts the number of trailing set bits (1s).
+inline int trailing_set_bits(uint64_t i) {
+    if (i == 0) return 0;
+    int count = 0;
+    while ((i & 1) == 1) {
+        count++;
+        i >>= 1;
     }
-  }
+    return count;
 }
 
-// Convert (x,y,z) to Hilbert index
-uint64_t hilbert3D(int x, int y, int z, int nbits) {
-  uint64_t index = 0;
-  int n = 1 << nbits;
-  for (int i = nbits - 1; i >= 0; i--) {
-    int rx = (x >> i) & 1;
-    int ry = (y >> i) & 1;
-    int rz = (z >> i) & 1;
-
-    int digit = (rx << 2) | (ry << 1) | rz;
-    index = (index << 3) | digit;
-
-    rot(n, x, y, z, rx, ry, rz);
-  }
-  return index;
+// Right-rotates a value.
+inline uint64_t right_rotate(uint64_t val, int n, int num_bits) {
+    n = n % num_bits;
+    if (n == 0) return val;
+    uint64_t mask = (1ULL << n) - 1;
+    uint64_t right_part = val & mask;
+    uint64_t left_part = val >> n;
+    return left_part | (right_part << (num_bits - n));
 }
 
-// Inverse Hilbert index to (x,y,z)
-void hilbert3D_inverse(uint64_t index, int nbits, int &x, int &y, int &z) {
-  x = y = z = 0;
-  uint64_t t = index;
-  int n = 1 << nbits;
-  for (int i = 0; i < nbits; i++) {
-    int digit = t & 7;
-    int rx = (digit >> 2) & 1;
-    int ry = (digit >> 1) & 1;
-    int rz = digit & 1;
+// --- Hamilton's Hilbert State Helpers (for n=3) ---
+const int N_DIMS = 3;
 
-    rot(n, x, y, z, rx, ry, rz);
+// Pre-computed lookup tables for e_i and d_i
+const std::vector<uint64_t> e_i_lookup = {
+    gray_code(2 * floor(0/2)), gray_code(2 * floor(1/2)),
+    gray_code(2 * floor(2/2)), gray_code(2 * floor(3/2)),
+    gray_code(2 * floor(4/2)), gray_code(2 * floor(5/2)),
+    gray_code(2 * floor(6/2)), gray_code(2 * floor(7/2))
+};
 
-    x |= rx << i;
-    y |= ry << i;
-    z |= rz << i;
+const std::vector<int> d_i_lookup = []{
+    std::vector<int> d(8);
+    std::vector<int> g(8);
+    for(int i=0; i<8; ++i) g[i] = trailing_set_bits(i);
+    d[0] = 0;
+    for (int i = 1; i < 8; ++i) {
+        if (i % 2 == 1) d[i] = g[i];
+        else d[i] = g[i-1];
+    }
+    return d;
+}();
 
-    t >>= 3;
-  }
-}
 
-//' Compute 3D Hilbert curve indices
-//' 
-//' @param x,y,z Integer vectors of coordinates
-//' @param nbits Number of bits per dimension (1-21)
-//' @param as_character Return indices as character strings to preserve precision
-//' @return Numeric or character vector of Hilbert indices
-//' @examples
-//' compute_hindex_cpp(IntegerVector::create(0,1,2),
-//'                    IntegerVector::create(0,1,2),
-//'                    IntegerVector::create(0,1,2), 4)
+// --- Main Hilbert Index Calculation ---
+
 // [[Rcpp::export]]
-SEXP compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z,
-                        int nbits, bool as_character = false) {
-  int n = x.size();
-  if (y.size() != n || z.size() != n) {
-    stop("x, y, and z must have the same length");
-  }
-  if (nbits <= 0 || nbits > 21) {
-    stop("nbits must be between 1 and 21");
-  }
-  int limit = 1 << nbits;
-  for (int i = 0; i < n; ++i) {
-    if (x[i] < 0 || y[i] < 0 || z[i] < 0) {
-      stop("coordinates must be non-negative");
-    }
-    if (x[i] >= limit || y[i] >= limit || z[i] >= limit) {
-      stop("coordinates exceed range defined by nbits");
-    }
-  }
+Rcpp::NumericVector compute_hindex_cpp(Rcpp::IntegerVector x, Rcpp::IntegerVector y, Rcpp::IntegerVector z, int max_coord_bits) {
+    R_xlen_t n = x.size();
+    Rcpp::NumericVector h_indices(n);
 
-  if (as_character) {
-    CharacterVector out(n);
-#ifdef _OPENMP
-    if (n > 10000) {
-#pragma omp parallel for
-      for (int i = 0; i < n; ++i) {
-        uint64_t idx = hilbert3D(x[i], y[i], z[i], nbits);
-        out[i] = std::to_string(idx);
-      }
-    } else
-#endif
-    {
-      for (int i = 0; i < n; ++i) {
-        uint64_t idx = hilbert3D(x[i], y[i], z[i], nbits);
-        out[i] = std::to_string(idx);
-      }
+    for (R_xlen_t k = 0; k < n; ++k) {
+        uint64_t cur_x = x[k];
+        uint64_t cur_y = y[k];
+        uint64_t cur_z = z[k];
+        
+        uint64_t h = 0;
+        uint64_t e = 0;
+        int d = 0;
+
+        for (int i = max_coord_bits - 1; i >= 0; --i) {
+            uint64_t b_x = (cur_x >> i) & 1;
+            uint64_t b_y = (cur_y >> i) & 1;
+            uint64_t b_z = (cur_z >> i) & 1;
+            uint64_t l = (b_x << 2) | (b_y << 1) | b_z;
+
+            uint64_t l_prime = right_rotate(l ^ e, d, N_DIMS);
+            uint64_t w = gray_code_inverse(l_prime);
+
+            h = (h << N_DIMS) | w;
+            
+            e = e ^ right_rotate(e_i_lookup[w], d, N_DIMS);
+            d = (d + d_i_lookup[w] + 1) % N_DIMS;
+        }
+        h_indices[k] = static_cast<double>(h);
     }
-    return out;
-  } else {
-    NumericVector out(n);
-#ifdef _OPENMP
-    if (n > 10000) {
-#pragma omp parallel for
-      for (int i = 0; i < n; ++i) {
-        out[i] = static_cast<double>(hilbert3D(x[i], y[i], z[i], nbits));
-      }
-    } else
-#endif
-    {
-      for (int i = 0; i < n; ++i) {
-        out[i] = static_cast<double>(hilbert3D(x[i], y[i], z[i], nbits));
-      }
-    }
-    return out;
-  }
+    return h_indices;
 }
 
-//' Decode Hilbert curve indices back to coordinates
-//'
-//' @param index Character vector of Hilbert indices
-//' @param nbits Number of bits per dimension (1-21)
-//' @return A data.frame with columns x, y and z
-// [[Rcpp::export]]
-DataFrame compute_hindex_cpp_inverse(CharacterVector index, int nbits) {
-  int n = index.size();
-  IntegerVector x(n), y(n), z(n);
-  for (int i = 0; i < n; ++i) {
-    std::string s = Rcpp::as<std::string>(index[i]);
-    char* endptr;
-    errno = 0;
-    uint64_t idx = std::strtoull(s.c_str(), &endptr, 10);
-    if (errno != 0 || *endptr != '\0') {
-      stop("Invalid index string at position " + std::to_string(i));
-    }
-    int xi, yi, zi;
-    hilbert3D_inverse(idx, nbits, xi, yi, zi);
-    x[i] = xi;
-    y[i] = yi;
-    z[i] = zi;
-  }
-  return DataFrame::create(Named("x") = x,
-                           Named("y") = y,
-                           Named("z") = z);
-}
 
-//' Convenience wrapper for a single 3D point
-//'
-//' @param x,y,z Integer coordinates
-//' @param nbits Number of bits per dimension (1-21)
-//' @param as_character Return index as character string
-//'
-//' @return A length-one vector containing the Hilbert index
+// --- Inverse Hilbert Index Calculation ---
+
 // [[Rcpp::export]]
-SEXP hilbert3D_single(int x, int y, int z, int nbits,
-                      bool as_character = false) {
-  IntegerVector xv(1, x), yv(1, y), zv(1, z);
-  return compute_hindex_cpp(xv, yv, zv, nbits, as_character);
+Rcpp::DataFrame compute_hindex_cpp_inverse(Rcpp::NumericVector h_indices, int max_coord_bits) {
+    R_xlen_t n = h_indices.size();
+    Rcpp::IntegerVector x_coords(n);
+    Rcpp::IntegerVector y_coords(n);
+    Rcpp::IntegerVector z_coords(n);
+
+    for (R_xlen_t k = 0; k < n; ++k) {
+        uint64_t h = static_cast<uint64_t>(h_indices[k]);
+        
+        uint64_t x = 0, y = 0, z = 0;
+        uint64_t e = 0;
+        int d = 0;
+
+        for (int i = max_coord_bits - 1; i >= 0; --i) {
+            uint64_t shift = i * N_DIMS;
+            uint64_t w = (h >> shift) & 7;
+
+            uint64_t l_prime = gray_code(w);
+            uint64_t l = e ^ right_rotate(l_prime, N_DIMS - d, N_DIMS);
+
+            x |= ((l >> 2) & 1) << i;
+            y |= ((l >> 1) & 1) << i;
+            z |= ((l >> 0) & 1) << i;
+
+            e = e ^ right_rotate(e_i_lookup[w], d, N_DIMS);
+            d = (d + d_i_lookup[w] + 1) % N_DIMS;
+        }
+        x_coords[k] = x;
+        y_coords[k] = y;
+        z_coords[k] = z;
+    }
+
+    return Rcpp::DataFrame::create(
+        Rcpp::Named("x") = x_coords,
+        Rcpp::Named("y") = y_coords,
+        Rcpp::Named("z") = z_coords
+    );
 }
 

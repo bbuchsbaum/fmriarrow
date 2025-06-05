@@ -5,37 +5,11 @@ compute_zindex_cpp <- function(x, y, z, max_coord_bits = 10L) {
     .Call(`_fmriarrow_compute_zindex_cpp`, x, y, z, max_coord_bits)
 }
 
-#' Compute 3D Hilbert curve indices
-#' 
-#' @param x,y,z Integer vectors of coordinates
-#' @param nbits Number of bits per dimension (1-21)
-#' @param as_character Return indices as character strings to preserve precision
-#' @return Numeric or character vector of Hilbert indices
-#' @examples
-#' compute_hindex_cpp(IntegerVector::create(0,1,2),
-#'                    IntegerVector::create(0,1,2),
-#'                    IntegerVector::create(0,1,2), 4)
-compute_hindex_cpp <- function(x, y, z, nbits, as_character = FALSE) {
-    .Call(`_fmriarrow_compute_hindex_cpp`, x, y, z, nbits, as_character)
+compute_hindex_cpp <- function(x, y, z, max_coord_bits) {
+    .Call(`_fmriarrow_compute_hindex_cpp`, x, y, z, max_coord_bits)
 }
 
-#' Decode Hilbert curve indices back to coordinates
-#'
-#' @param index Character vector of Hilbert indices
-#' @param nbits Number of bits per dimension (1-21)
-#' @return A data.frame with columns x, y and z
-compute_hindex_cpp_inverse <- function(index, nbits) {
-    .Call(`_fmriarrow_compute_hindex_cpp_inverse`, index, nbits)
-}
-
-#' Convenience wrapper for a single 3D point
-#'
-#' @param x,y,z Integer coordinates
-#' @param nbits Number of bits per dimension (1-21)
-#' @param as_character Return index as character string
-#'
-#' @return A length-one vector containing the Hilbert index
-hilbert3D_single <- function(x, y, z, nbits, as_character = FALSE) {
-    .Call(`_fmriarrow_hilbert3D_single`, x, y, z, nbits, as_character)
+compute_hindex_cpp_inverse <- function(h_indices, max_coord_bits) {
+    .Call(`_fmriarrow_compute_hindex_cpp_inverse`, h_indices, max_coord_bits)
 }
 
