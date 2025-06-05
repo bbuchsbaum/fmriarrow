@@ -17,13 +17,12 @@ test_that("vectorized input works", {
 })
 
 test_that("character mode round trip", {
-  skip("Hilbert inverse implementation needs fixing")
-  idx_chr <- compute_hindex(1:4, c(0,1,2,3), c(3,2,1,0),
+  idx_chr <- compute_hindex(1:4, c(0, 1, 2, 3), c(3, 2, 1, 0),
                            max_coord_bits = 6, as_character = TRUE)
   decoded <- compute_hindex_cpp_inverse(idx_chr, nbits = 6)
   expect_equal(decoded$x, 1:4)
-  expect_equal(decoded$y, c(0,1,2,3))
-  expect_equal(decoded$z, c(3,2,1,0))
+  expect_equal(decoded$y, c(0, 1, 2, 3))
+  expect_equal(decoded$z, c(3, 2, 1, 0))
 })
 
 test_that("input validation", {
@@ -54,4 +53,41 @@ test_that("single point wrapper works", {
   direct <- compute_hindex_cpp(1L, 2L, 3L, 4L)
   expect_equal(val, direct)
 })
+
+test_that("hilbert3D and its inverse are mutual for full ranges", {
+  nbits_values <- 1:5
+  for (nbits in nbits_values) {
+    n <- 2^nbits
+    coords <- expand.grid(x = 0:(n - 1),
+                          y = 0:(n - 1),
+                          z = 0:(n - 1))
+    idx <- compute_hindex_cpp(coords$x, coords$y, coords$z,
+                              nbits, as_character = TRUE)
+    decoded <- compute_hindex_cpp_inverse(idx, nbits)
+    expect_equal(decoded$x, coords$x)
+    expect_equal(decoded$y, coords$y)
+    expect_equal(decoded$z, coords$z)
+  }
+})
+
+test_that("round trip works for larger nbits values", {
+  nbits_values <- c(8, 12, 20)
+  set.seed(123)
+  for (nbits in nbits_values) {
+    limit <- 2^nbits
+    coords <- data.frame(
+      x = sample.int(limit, 50) - 1L,
+      y = sample.int(limit, 50) - 1L,
+      z = sample.int(limit, 50) - 1L
+    )
+    idx <- compute_hindex_cpp(coords$x, coords$y, coords$z,
+                              nbits, as_character = TRUE)
+    decoded <- compute_hindex_cpp_inverse(idx, nbits)
+    expect_equal(decoded$x, coords$x)
+    expect_equal(decoded$y, coords$y)
+    expect_equal(decoded$z, coords$z)
+  }
+})
+
+
 
