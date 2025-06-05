@@ -447,4 +447,36 @@ setMethod("dim", "ParquetNeuroVec",
   function(x) {
     return(x@metadata$spatial_properties$original_dimensions)
   }
-) 
+)
+
+#' Concatenate Two ParquetNeuroVec Objects
+#'
+#' This method concatenates two `ParquetNeuroVec` objects along the time
+#' dimension and returns a new `ParquetNeuroVec`. Internally the data are
+#' converted to dense `NeuroVec` objects using `neuroim2::concat` and written
+#' back to a temporary Parquet file via `neurovec_to_fpar()`.
+#'
+#' @param x A `ParquetNeuroVec` object.
+#' @param y A `ParquetNeuroVec` object to concatenate to `x`.
+#' @param output_parquet_path Optional path for the resulting Parquet file.
+#'   If not supplied, a temporary file is created.
+#' @param ... Additional arguments passed to `neuroim2::concat`.
+#'
+#' @return A new `ParquetNeuroVec` representing the concatenated data.
+#' @export
+setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
+  function(x, y, output_parquet_path = tempfile(fileext = ".fpar"), ...) {
+    nv_x <- methods::as(x, "NeuroVec")
+    nv_y <- methods::as(y, "NeuroVec")
+
+    dense_res <- neuroim2::concat(nv_x, nv_y, ...)
+
+    neurovec_to_fpar(
+      neuro_vec_obj = dense_res,
+      output_parquet_path = output_parquet_path,
+      subject_id = "concat"
+    )
+
+    ParquetNeuroVec(output_parquet_path)
+  }
+)
