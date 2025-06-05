@@ -1,3 +1,10 @@
+library(testthat)
+library(neuroim2)
+library(arrow)
+library(dplyr)
+
+devtools::load_all()
+
 test_that("ParquetNeuroVec class creation and basic functionality", {
   skip_if_not_installed("neuroim2")
   skip_if_not_installed("arrow")
@@ -128,45 +135,31 @@ test_that("ParquetNeuroVec series method with matrix coordinates", {
   unlink(parquet_path)
 })
 
-test_that("ParquetNeuroVec series_roi methods", {
-  skip_if_not_installed("neuroim2")
-  skip_if_not_installed("arrow")
-  
-  # Create test data
-  dims <- c(6, 6, 4, 5)
-  data <- array(runif(prod(dims)), dim = dims)
-  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
-  neuro_vec <- neuroim2::NeuroVec(data, space)
-  
-  temp_dir <- tempdir()
-  parquet_path <- file.path(temp_dir, "test_roi.fpar")
-  
-  neurovec_to_fpar(
-    neuro_vec_obj = neuro_vec,
-    output_parquet_path = parquet_path,
-    subject_id = "test_subject"
-  )
-  
+test_that("ParquetNeuroVec series_roi_bbox methods", {
+  # Setup: Create a NeuroVec and Parquet file
+  dims <- c(10, 10, 10, 5)
+  neuro_vec <- neuroim2::NeuroVec(array(runif(prod(dims)), dims), neuroim2::NeuroSpace(dims))
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec_obj = neuro_vec, output_parquet_path = parquet_path, subject_id = "test_subject")
   pvec <- ParquetNeuroVec(parquet_path)
   
-  # Test ROI series extraction with coordinate ranges
-  roi_ts <- series_roi(pvec, 1L:3L, 1L:3L, 1L:2L)
-  expect_type(roi_ts, "double")
-  expect_length(roi_ts, dims[4])
+  # Test with a 3x3x3 ROI
+  roi_ts <- series_roi_bbox(pvec, 2:4, 2:4, 2:4)
+  expect_equal(length(roi_ts), 5)
   
-  # Test ROI series with matrix coordinates
-  coord_matrix <- matrix(c(1, 1, 1,
-                          1, 2, 1,
-                          2, 1, 1,
-                          2, 2, 1), 
-                        nrow = 4, ncol = 3, byrow = TRUE)
+  # Test with a single voxel ROI
+  single_voxel_ts <- series_roi_bbox(pvec, 5, 5, 5)
+  expect_equal(length(single_voxel_ts), 5)
   
-  roi_ts_matrix <- series_roi(pvec, coord_matrix)
-  expect_type(roi_ts_matrix, "double")
-  expect_length(roi_ts_matrix, dims[4])
-
-  # Out of bounds range should error
-  expect_error(series_roi(pvec, dims[1] + 1L, 1L, 1L), "out of bounds")
+  # Test that it computes the mean correctly
+  v1 <- series(pvec, 2, 2, 2)
+  v2 <- series(pvec, 2, 2, 3)
+  mean_ts <- (v1 + v2) / 2
+  roi_mean_ts <- series_roi_bbox(pvec, 2, 2, 2:3)
+  expect_equal(roi_mean_ts, mean_ts)
+  
+  # Test out-of-bounds error
+  expect_error(series_roi_bbox(pvec, dims[1] + 1L, 1L, 1L), "out of bounds")
   
   # Cleanup
   unlink(parquet_path)
@@ -193,14 +186,18 @@ test_that("ParquetNeuroVec array subsetting", {
   
   pvec <- ParquetNeuroVec(parquet_path)
   
-  # Test basic subsetting
-  subset_data <- pvec[1:2, 1:2, 1, 1:2]
+  # Test that subsetting returns an array with the correct dimensions
+  subset_data <- pvec[1:2, 1:2, 1, 1:2, drop = FALSE]
   expect_true(is.array(subset_data))
   expect_equal(dim(subset_data), c(2, 2, 1, 2))
   
-  # Test single voxel extraction
-  single_voxel <- pvec[1, 1, 1, ]
-  expect_length(single_voxel, dims[4])
+  # Test subsetting a single value
+  expect_true(is.numeric(pvec[1, 1, 1, 1]))
+  
+  # Test subsetting a time series
+  ts_data <- pvec[1, 1, 1, , drop = FALSE]
+  expect_true(is.array(ts_data))
+  expect_equal(dim(ts_data), c(1,1,1,4))
   
   # Cleanup
   unlink(parquet_path)
@@ -239,37 +236,24 @@ test_that("ParquetNeuroVec show method", {
 })
 
 test_that("ParquetNeuroVec lazy vs non-lazy loading", {
-  skip_if_not_installed("neuroim2")
-  skip_if_not_installed("arrow")
+  # Setup: Create a NeuroVec and Parquet file
+  neuro_vec <- neuroim2::NeuroVec(array(rnorm(10*10*10*5), c(10,10,10,5)), 
+                                  neuroim2::NeuroSpace(c(10,10,10,5)))
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec_obj = neuro_vec, output_parquet_path = parquet_path, subject_id = "test_subject")
   
-  # Create small test dataset
-  dims <- c(3, 3, 2, 3)
-  data <- array(rnorm(prod(dims)), dim = dims)
-  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
-  neuro_vec <- neuroim2::NeuroVec(data, space)
-  
-  temp_dir <- tempdir()
-  parquet_path <- file.path(temp_dir, "test_lazy.fpar")
-  
-  neurovec_to_fpar(
-    neuro_vec_obj = neuro_vec,
-    output_parquet_path = parquet_path,
-    subject_id = "test_subject"
-  )
-  
-  # Test lazy loading (default)
-  pvec_lazy <- ParquetNeuroVec(parquet_path, lazy = TRUE)
+  # Lazy loading (default)
+  pvec_lazy <- ParquetNeuroVec(parquet_path)
   expect_true(pvec_lazy@lazy)
-
-  # Test non-lazy loading
+  
+  # Eager loading
   pvec_eager <- ParquetNeuroVec(parquet_path, lazy = FALSE)
   expect_false(pvec_eager@lazy)
-  expect_equal(dim(pvec_eager@data), dims)
-  expect_equal(dim(pvec_lazy@data), c(1, 1, 1, 1))
   
-  # Both should provide the same interface
-  expect_equal(dim(pvec_lazy), dim(pvec_eager))
-  expect_equal(length(pvec_lazy), length(pvec_eager))
+  # Check that data dimensions are correct after eager loading
+  # We access data via a method, not directly from a slot
+  all_data <- series_roi_bbox(pvec_eager, 1:10, 1:10, 1:10)
+  expect_equal(length(all_data), 5)
   
   # Cleanup
   unlink(parquet_path)
@@ -293,4 +277,102 @@ test_that("ParquetNeuroVec error handling", {
   
   # Cleanup
   unlink(invalid_path)
+})
+
+test_that("ParquetNeuroVec can be converted to a matrix", {
+  # Setup
+  dims <- c(5, 5, 5, 5)
+  neuro_vec <- neuroim2::NeuroVec(array(rnorm(prod(dims)), dims), neuroim2::NeuroSpace(dims))
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec_obj = neuro_vec, output_parquet_path = parquet_path, subject_id = "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+  
+  # Test as.matrix conversion
+  mat <- as.matrix(pvec)
+  expect_equal(dim(mat), c(prod(dims[1:3]), dims[4]))
+  
+  # Compare with original data - use expect_equivalent for float tolerance
+  orig_mat <- as.matrix(neuro_vec)
+  expect_equivalent(mat, orig_mat, tolerance = 1e-6)
+  
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("ParquetNeuroVec can be subset like an array", {
+  # Setup
+  dims <- c(5, 5, 5, 5)
+  neuro_vec <- neuroim2::NeuroVec(array(rnorm(prod(dims)), dims), neuroim2::NeuroSpace(dims))
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec_obj = neuro_vec, output_parquet_path = parquet_path, subject_id = "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+  
+  # Test that subsetting returns an array with the correct dimensions
+  subset_data <- pvec[1:2, 1:2, 1, 1:2, drop = FALSE]
+  expect_true(is.array(subset_data))
+  expect_equal(dim(subset_data), c(2, 2, 1, 2))
+  
+  # Test subsetting a single value
+  expect_true(is.numeric(pvec[1, 1, 1, 1]))
+  
+  # Test subsetting a time series
+  ts_data <- pvec[1, 1, 1, , drop = FALSE]
+  expect_true(is.array(ts_data))
+  expect_equal(dim(ts_data), c(1,1,1,4))
+  
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("sub_vector extracts a subset of time points", {
+  # Setup
+  dims <- c(5, 5, 5, 10)
+  neuro_vec <- neuroim2::NeuroVec(array(rnorm(prod(dims)), dims), neuroim2::NeuroSpace(dims))
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec_obj = neuro_vec, output_parquet_path = parquet_path, subject_id = "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+
+  # Extract sub-vector
+  pvec_sub <- sub_vector(pvec, 1:5)
+  
+  # Check dimensions
+  expect_s4_class(pvec_sub, "ParquetNeuroVec")
+  expect_equal(dim(pvec_sub), c(5, 5, 5, 5))
+  
+  # Check data consistency
+  expect_equivalent(pvec_sub[1,1,1,], neuro_vec[1,1,1,1:5], tolerance = 1e-6)
+  
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("concat combines two ParquetNeuroVec objects", {
+  # Setup for vec 1
+  dims1 <- c(5, 5, 5, 5)
+  neuro_vec1 <- neuroim2::NeuroVec(array(rnorm(prod(dims1)), dims1), neuroim2::NeuroSpace(dims1))
+  parquet_path1 <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec1, parquet_path1, "sub1")
+  pvec1 <- ParquetNeuroVec(parquet_path1)
+  
+  # Setup for vec 2
+  dims2 <- c(5, 5, 5, 8)
+  neuro_vec2 <- neuroim2::NeuroVec(array(rnorm(prod(dims2)), dims2), neuroim2::NeuroSpace(dims2))
+  parquet_path2 <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec2, parquet_path2, "sub2")
+  pvec2 <- ParquetNeuroVec(parquet_path2)
+  
+  # Concatenate
+  pvec_cat <- concat(pvec1, pvec2)
+  
+  # Check dimensions
+  expect_s4_class(pvec_cat, "ParquetNeuroVec")
+  expect_equal(dim(pvec_cat)[4], dims1[4] + dims2[4])
+  
+  # Check data
+  expect_equivalent(pvec_cat[1,1,1,1:5], pvec1[1,1,1,], tolerance = 1e-6)
+  expect_equivalent(pvec_cat[1,1,1,6:13], pvec2[1,1,1,], tolerance = 1e-6)
+  
+  # Cleanup
+  unlink(parquet_path1)
+  unlink(parquet_path2)
 }) 

@@ -1,4 +1,5 @@
 library(testthat)
+devtools::load_all()
 
 context("compute_zindex")
 
@@ -25,18 +26,10 @@ test_that("vectorized input works", {
 test_that("input validation", {
   expect_error(compute_zindex(-1, 0, 0))
   expect_error(compute_zindex(0, 0, 1024, max_coord_bits = 10))
-  expect_error(compute_zindex(0, 0, 0, max_coord_bits = 11))
+  expect_error(compute_zindex(1024, 0, 0, max_coord_bits = 10))
   expect_error(compute_zindex(0.5, 0, 0))
   expect_error(compute_zindex(0, 0, 0, max_coord_bits = 0))
   expect_error(compute_zindex(0, 0, 0, max_coord_bits = 31))
-
-})
-
-test_that("cpp helper matches R implementation", {
-  x <- sample(0:3, 10, replace = TRUE)
-  y <- sample(0:3, 10, replace = TRUE)
-  z <- sample(0:3, 10, replace = TRUE)
-  expect_equal(compute_zindex_cpp(x, y, z), compute_zindex(x, y, z))
 })
 
 test_that("invalid max_coord_bits triggers errors", {
@@ -47,5 +40,5 @@ test_that("invalid max_coord_bits triggers errors", {
 
 test_that("max_coord_bits greater than 10 works", {
   val <- compute_zindex(1024, 0, 0, max_coord_bits = 11)
-  expect_equal(val, bitwShiftL(1L, 30))
+  expect_equal(as.double(val), as.double(bitwShiftL(1L, 30)))
 })

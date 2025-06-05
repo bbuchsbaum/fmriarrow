@@ -91,12 +91,34 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   y <- coord_matrix[, 2] - 1L
   z <- coord_matrix[, 3] - 1L
 
-  # Morton indices for all voxels
-  zindex <- compute_zindex(x, y, z, max_coord_bits)
+  # Use Morton indices for small volumes, Hilbert indices for large volumes
+  if (max_coord_bits <= 10) {
+    # Morton indices for all voxels
+    zindex <- compute_zindex(x, y, z, max_coord_bits)
+  } else {
+    # Use Hilbert indices for large volumes (> 1024 voxels per axis)
+    warning("Dimensions exceed 1024 voxels. Using Hilbert curve indexing.")
+    # Hilbert indices return numeric (64-bit), convert to integer for consistency
+    hindex <- compute_hindex(x, y, z, max_coord_bits, as_character = FALSE)
+    # Scale down to fit in 32-bit integer range if needed
+    max_hindex <- max(hindex)
+    if (max_hindex > .Machine$integer.max) {
+      # Scale indices to fit in 32-bit range while preserving order
+      zindex <- as.integer(hindex / (max_hindex / .Machine$integer.max))
+    } else {
+      zindex <- as.integer(hindex)
+    }
+  }
 
   # Extract all BOLD time series as a matrix (voxels x time)
-  bold_matrix <- t(neuroim2::series(neuro_vec_obj, coord_matrix))
+  bold_matrix <- neuroim2::series(neuro_vec_obj, coord_matrix)
 
+  if (!is.matrix(bold_matrix)) {
+    bold_matrix <- matrix(bold_matrix, nrow=1)
+  }
+
+  bold_matrix <- t(bold_matrix)
+  
   # Track min/max values for data integrity
   min_value <- min(bold_matrix, na.rm = TRUE)
   max_value <- max(bold_matrix, na.rm = TRUE)
@@ -115,10 +137,10 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     session_id = rep(session_id %||% NA_character_, n_vox),
     task_id = rep(task_id %||% NA_character_, n_vox),
     run_id = rep(run_id %||% NA_character_, n_vox),
-    x = x, 
-    y = y, 
-    z = z,
-    zindex = zindex,
+    x = as.integer(x), 
+    y = as.integer(y), 
+    z = as.integer(z),
+    zindex = as.integer(zindex),
     stringsAsFactors = FALSE
   )
   
@@ -126,26 +148,39 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   voxel_data$bold <- I(bold)
 
   timepoints <- as.integer(neuro_vec_dims[4])
-
-  # Define Arrow schema with explicit types
-  schema <- arrow::schema(
-    subject_id = arrow::string(),
-    session_id = arrow::string(),
-    task_id = arrow::string(),
-    run_id = arrow::string(),
-    x = arrow::uint16(),
-    y = arrow::uint16(),
-    z = arrow::uint16(),
-    zindex = arrow::uint32(),
-    bold = arrow::fixed_size_list_of(arrow::float32(), timepoints)
-  )
-
+  
   # Embed metadata directly in schema
   metadata_json <- jsonlite::toJSON(metadata, auto_unbox = TRUE)
+
+  schema <- arrow::schema(
+    arrow::field("subject_id", arrow::string()),
+    arrow::field("session_id", arrow::string()),
+    arrow::field("task_id", arrow::string()),
+    arrow::field("run_id", arrow::string()),
+    arrow::field("x", arrow::uint16()),
+    arrow::field("y", arrow::uint16()),
+    arrow::field("z", arrow::uint16()),
+    arrow::field("zindex", arrow::uint32()),
+    arrow::field("bold", arrow::fixed_size_list_of(arrow::float32(), timepoints))
+  )
+  
   schema <- schema$WithMetadata(list(spatial_metadata = metadata_json))
 
   # Create Arrow table with metadata and sort by zindex
-  arrow_tbl <- arrow::arrow_table(voxel_data, schema = schema)
+  
+  arrays <- list(
+    subject_id = arrow::Array$create(voxel_data$subject_id, type = arrow::string()),
+    session_id = arrow::Array$create(voxel_data$session_id, type = arrow::string()),
+    task_id = arrow::Array$create(voxel_data$task_id, type = arrow::string()),
+    run_id = arrow::Array$create(voxel_data$run_id, type = arrow::string()),
+    x = arrow::Array$create(as.integer(voxel_data$x), type = arrow::uint16()),
+    y = arrow::Array$create(as.integer(voxel_data$y), type = arrow::uint16()),
+    z = arrow::Array$create(as.integer(voxel_data$z), type = arrow::uint16()),
+    zindex = arrow::Array$create(as.integer(voxel_data$zindex), type = arrow::uint32()),
+    bold = arrow::Array$create(voxel_data$bold, type = arrow::fixed_size_list_of(arrow::float32(), timepoints))
+  )
+  
+  arrow_tbl <- arrow::arrow_table(!!!arrays, schema = schema)
   arrow_tbl_sorted <- dplyr::arrange(arrow_tbl, zindex)
 
   # Convert the dplyr query back to a Table

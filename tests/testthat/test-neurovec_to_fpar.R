@@ -1,6 +1,5 @@
 library(testthat)
-
-context("neurovec_to_fpar")
+devtools::load_all()
 
 test_that("input must be a NeuroVec", {
   expect_error(neurovec_to_fpar(list(), "file.parquet", "sub01"))
@@ -90,10 +89,10 @@ test_that("arrow table has expected data types", {
   res <- neurovec_to_fpar(nv, tempfile(), "sub01")
   sch <- res$arrow_table$schema
 
-  expect_true(inherits(sch$GetFieldByName("x")$type, "UInt16Type"))
-  expect_true(inherits(sch$GetFieldByName("y")$type, "UInt16Type"))
-  expect_true(inherits(sch$GetFieldByName("z")$type, "UInt16Type"))
-  expect_true(inherits(sch$GetFieldByName("zindex")$type, "UInt32Type"))
+  expect_true(inherits(sch$GetFieldByName("x")$type, "UInt16"))
+  expect_true(inherits(sch$GetFieldByName("y")$type, "UInt16"))
+  expect_true(inherits(sch$GetFieldByName("z")$type, "UInt16"))
+  expect_true(inherits(sch$GetFieldByName("zindex")$type, "UInt32"))
   expect_true(inherits(sch$GetFieldByName("bold")$type, "FixedSizeListType"))
 })
 
@@ -140,6 +139,7 @@ test_that("volumes larger than 1024 voxels per axis work", {
   nv <- neuroim2::DenseNeuroVec(arr, space)
 
   res <- neurovec_to_fpar(nv, tempfile(), "sub01")
-  expect_equal(nrow(res$voxel_data), prod(dims[1:3]))
-  expect_equal(res$voxel_data$zindex, sort(res$voxel_data$zindex))
+  df <- as.data.frame(res$arrow_table)
+  expect_equal(nrow(df), prod(dims[1:3]))
+  expect_equal(df$zindex, sort(df$zindex))
 })

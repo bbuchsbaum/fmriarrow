@@ -39,6 +39,45 @@ inline void rot(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
   }
 }
 
+// Inverse rotation - undoes the effect of rot()
+inline void rot_inv(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
+  // We need to undo rot() operations in reverse order
+  if (rz == 0) {
+    // rot() does operations then swap(y,z), so we swap(y,z) first
+    std::swap(y, z);
+    if (ry == 0) {
+      // rot() does flip then swap(x,y), so we swap(x,y) then flip
+      std::swap(x, y);
+      if (rx == 1) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+    } else {
+      // rot() just does flip
+      if (rx == 0) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+    }
+  } else {
+    // rz == 1: no swap(y,z) in rot()
+    if (ry == 1) {
+      // rot() does flip then swap(x,y), so we swap(x,y) then flip
+      std::swap(x, y);
+      if (rx == 1) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+    } else {
+      // rot() just does flip
+      if (rx == 0) {
+        x = n - 1 - x;
+        y = n - 1 - y;
+      }
+    }
+  }
+}
+
 // Convert (x,y,z) to Hilbert index
 uint64_t hilbert3D(int x, int y, int z, int nbits) {
   uint64_t index = 0;
@@ -57,16 +96,31 @@ uint64_t hilbert3D(int x, int y, int z, int nbits) {
 // Inverse Hilbert index to (x,y,z)
 void hilbert3D_inverse(uint64_t index, int nbits, int &x, int &y, int &z) {
   x = y = z = 0;
-  int n = 1 << nbits;
+  
   for (int i = 0; i < nbits; i++) {
-    int digit = (index >> (3 * (nbits - i - 1))) & 7;
+    // Extract the 3-bit digit for this level (from high bits to low)
+    int shift = 3 * (nbits - 1 - i);
+    int digit = (index >> shift) & 7;
+    
+    // Extract rx, ry, rz from the digit
     int rx = (digit >> 2) & 1;
     int ry = (digit >> 1) & 1;
     int rz = digit & 1;
+    
+    // Shift existing coordinates
+    x <<= 1;
+    y <<= 1; 
+    z <<= 1;
+    
+    // Add the new bits
+    x |= rx;
+    y |= ry;
+    z |= rz;
+    
+    // Apply rotation (not inverse!) - we need to rotate into position
+    // just like the forward transform does
+    int n = 1 << (i + 1);
     rot(n, x, y, z, rx, ry, rz);
-    x |= rx << i;
-    y |= ry << i;
-    z |= rz << i;
   }
 }
 
