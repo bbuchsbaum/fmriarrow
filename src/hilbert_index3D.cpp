@@ -81,13 +81,15 @@ inline void rot_inv(int n, int &x, int &y, int &z, int rx, int ry, int rz) {
 // Convert (x,y,z) to Hilbert index
 uint64_t hilbert3D(int x, int y, int z, int nbits) {
   uint64_t index = 0;
-  int n = 1 << nbits;
   for (int i = nbits - 1; i >= 0; i--) {
     int rx = (x >> i) & 1;
     int ry = (y >> i) & 1;
     int rz = (z >> i) & 1;
+
     int digit = (rx << 2) | (ry << 1) | rz;
     index = (index << 3) | digit;
+
+    int n = 1 << (i + 1);
     rot(n, x, y, z, rx, ry, rz);
   }
   return index;
@@ -96,31 +98,21 @@ uint64_t hilbert3D(int x, int y, int z, int nbits) {
 // Inverse Hilbert index to (x,y,z)
 void hilbert3D_inverse(uint64_t index, int nbits, int &x, int &y, int &z) {
   x = y = z = 0;
-  
+  uint64_t t = index;
   for (int i = 0; i < nbits; i++) {
-    // Extract the 3-bit digit for this level (from high bits to low)
-    int shift = 3 * (nbits - 1 - i);
-    int digit = (index >> shift) & 7;
-    
-    // Extract rx, ry, rz from the digit
+    int digit = t & 7;
     int rx = (digit >> 2) & 1;
     int ry = (digit >> 1) & 1;
     int rz = digit & 1;
-    
-    // Shift existing coordinates
-    x <<= 1;
-    y <<= 1; 
-    z <<= 1;
-    
-    // Add the new bits
-    x |= rx;
-    y |= ry;
-    z |= rz;
-    
-    // Apply rotation (not inverse!) - we need to rotate into position
-    // just like the forward transform does
+
     int n = 1 << (i + 1);
     rot(n, x, y, z, rx, ry, rz);
+
+    x |= rx << i;
+    y |= ry << i;
+    z |= rz << i;
+
+    t >>= 3;
   }
 }
 
