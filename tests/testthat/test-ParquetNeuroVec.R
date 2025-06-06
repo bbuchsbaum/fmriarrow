@@ -318,7 +318,7 @@ test_that("ParquetNeuroVec can be subset like an array", {
   # Test subsetting a time series
   ts_data <- pvec[1, 1, 1, , drop = FALSE]
   expect_true(is.array(ts_data))
-  expect_equal(dim(ts_data), c(1,1,1,4))
+  expect_equal(dim(ts_data), c(1,1,1,5))
   
   # Cleanup
   unlink(parquet_path)

@@ -99,7 +99,7 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     # Use Hilbert indices for large volumes (> 1024 voxels per axis)
     warning("Dimensions exceed 1024 voxels. Using Hilbert curve indexing.")
     # Hilbert indices return numeric (64-bit), convert to integer for consistency
-    hindex <- compute_hindex(x, y, z, max_coord_bits, as_character = FALSE)
+    hindex <- compute_hindex(x, y, z, max_coord_bits)
     # Scale down to fit in 32-bit integer range if needed
     max_hindex <- max(hindex)
     if (max_hindex > .Machine$integer.max) {

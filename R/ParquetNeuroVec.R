@@ -9,7 +9,7 @@
 #' spatial indexing for efficient querying while maintaining full compatibility with
 #' neuroim2 workflows.
 #' 
-#' @importFrom neuroim2 series series_roi
+#' @importFrom neuroim2 series series_roi concat sub_vector
 #' 
 #' @slot parquet_path character. Path to the .fpar file.
 #' @slot metadata list. Cached metadata from the Parquet file.
@@ -237,6 +237,12 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
   }
 )
 
+#' @rdname series_roi_bbox-methods
+#' @export
+setGeneric("series_roi_bbox", function(x, i, j, k) {
+  standardGeneric("series_roi_bbox")
+})
+
 #' Extract ROI Time Series from ParquetNeuroVec based on a bounding box
 #' 
 #' @param x ParquetNeuroVec object
@@ -245,12 +251,6 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
 #' @param k integer. z-coordinate range or single coordinate
 #' 
 #' @return numeric vector. Average time series across the ROI
-#' @export
-setGeneric("series_roi_bbox", function(x, i, j, k) {
-  standardGeneric("series_roi_bbox")
-})
-
-#' @rdname series_roi_bbox-methods
 #' @export
 setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "integer", j = "integer", k = "integer"),
   function(x, i, j, k) {
@@ -286,6 +286,7 @@ setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "integer", j =
 )
 
 #' @rdname series_roi_bbox-methods
+#' @export
 setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "numeric", j = "numeric", k = "numeric"),
   function(x, i, j, k) {
     series_roi_bbox(x, as.integer(i), as.integer(j), as.integer(k))
@@ -371,6 +372,7 @@ setMethod("show", "ParquetNeuroVec",
   arr
 }
 
+#' @export
 setMethod("[", signature(x = "ParquetNeuroVec"),
   function(x, i, j, k, ..., drop = TRUE) {
     # This is a simple but inefficient implementation that loads all data.
@@ -426,6 +428,7 @@ setMethod("dim", "ParquetNeuroVec",
 #'
 #' @return A new `ParquetNeuroVec` representing the concatenated data.
 #' @export
+#' @rdname concat-methods
 setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
   function(x, y, output_parquet_path = tempfile(fileext = ".fpar"), ...) {
     nv_x <- methods::as(x, "NeuroVec")
@@ -442,16 +445,22 @@ setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
     ParquetNeuroVec(output_parquet_path)
 })
 
+#' @export
 setMethod("as.matrix", signature(x = "ParquetNeuroVec"),
   function(x) {
     # Load all data into a 4D array
     arr <- x[]
     
+    # Ensure we have a numeric array
+    if (!is.numeric(arr)) {
+      stop("Data must be numeric for matrix conversion")
+    }
+    
     # Reshape to a 2D matrix (voxels x time)
     mat_dims <- c(prod(dim(x)[1:3]), dim(x)[4])
-    dim(arr) <- mat_dims
     
-    arr
+    # Convert to matrix explicitly
+    matrix(as.vector(arr), nrow = mat_dims[1], ncol = mat_dims[2])
   }
 )
 
@@ -479,4 +488,17 @@ setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "integer"),
     ParquetNeuroVec(temp_path)
   }
 )
+
+#' Convert ParquetNeuroVec to NeuroVec
+#' 
+#' @param from ParquetNeuroVec object to convert
+#' @return A NeuroVec object
+#' @importFrom methods setAs
+setAs("ParquetNeuroVec", "NeuroVec", function(from) {
+  # Load all data into a 4D array
+  data_arr <- from[]
+  
+  # Create a NeuroVec from the array and space
+  neuroim2::NeuroVec(data_arr, from@space)
+})
 

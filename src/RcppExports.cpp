@@ -25,36 +25,53 @@ BEGIN_RCPP
 END_RCPP
 }
 // compute_hindex_cpp
-Rcpp::NumericVector compute_hindex_cpp(Rcpp::IntegerVector x, Rcpp::IntegerVector y, Rcpp::IntegerVector z, int nbits);
-RcppExport SEXP _fmriarrow_compute_hindex_cpp(SEXP xSEXP, SEXP ySEXP, SEXP zSEXP, SEXP nbitsSEXP) {
+SEXP compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z, int nbits, bool as_character);
+RcppExport SEXP _fmriarrow_compute_hindex_cpp(SEXP xSEXP, SEXP ySEXP, SEXP zSEXP, SEXP nbitsSEXP, SEXP as_characterSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type y(ySEXP);
-    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type z(zSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type z(zSEXP);
     Rcpp::traits::input_parameter< int >::type nbits(nbitsSEXP);
-    rcpp_result_gen = Rcpp::wrap(compute_hindex_cpp(x, y, z, nbits));
+    Rcpp::traits::input_parameter< bool >::type as_character(as_characterSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_hindex_cpp(x, y, z, nbits, as_character));
     return rcpp_result_gen;
 END_RCPP
 }
 // compute_hindex_cpp_inverse
-Rcpp::DataFrame compute_hindex_cpp_inverse(Rcpp::NumericVector h_indices, int nbits);
-RcppExport SEXP _fmriarrow_compute_hindex_cpp_inverse(SEXP h_indicesSEXP, SEXP nbitsSEXP) {
+DataFrame compute_hindex_cpp_inverse(CharacterVector index, int nbits);
+RcppExport SEXP _fmriarrow_compute_hindex_cpp_inverse(SEXP indexSEXP, SEXP nbitsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type h_indices(h_indicesSEXP);
+    Rcpp::traits::input_parameter< CharacterVector >::type index(indexSEXP);
     Rcpp::traits::input_parameter< int >::type nbits(nbitsSEXP);
-    rcpp_result_gen = Rcpp::wrap(compute_hindex_cpp_inverse(h_indices, nbits));
+    rcpp_result_gen = Rcpp::wrap(compute_hindex_cpp_inverse(index, nbits));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hilbert3D_single
+SEXP hilbert3D_single(int x, int y, int z, int nbits, bool as_character);
+RcppExport SEXP _fmriarrow_hilbert3D_single(SEXP xSEXP, SEXP ySEXP, SEXP zSEXP, SEXP nbitsSEXP, SEXP as_characterSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type y(ySEXP);
+    Rcpp::traits::input_parameter< int >::type z(zSEXP);
+    Rcpp::traits::input_parameter< int >::type nbits(nbitsSEXP);
+    Rcpp::traits::input_parameter< bool >::type as_character(as_characterSEXP);
+    rcpp_result_gen = Rcpp::wrap(hilbert3D_single(x, y, z, nbits, as_character));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_fmriarrow_compute_zindex_cpp", (DL_FUNC) &_fmriarrow_compute_zindex_cpp, 4},
-    {"_fmriarrow_compute_hindex_cpp", (DL_FUNC) &_fmriarrow_compute_hindex_cpp, 4},
+    {"_fmriarrow_compute_hindex_cpp", (DL_FUNC) &_fmriarrow_compute_hindex_cpp, 5},
     {"_fmriarrow_compute_hindex_cpp_inverse", (DL_FUNC) &_fmriarrow_compute_hindex_cpp_inverse, 2},
+    {"_fmriarrow_hilbert3D_single", (DL_FUNC) &_fmriarrow_hilbert3D_single, 5},
     {NULL, NULL, 0}
 };
 
