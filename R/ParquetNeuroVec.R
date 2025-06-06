@@ -14,6 +14,7 @@
 #' @slot parquet_path character. Path to the .fpar file.
 #' @slot metadata list. Cached metadata from the Parquet file.
 #' @slot lazy logical. Whether to use lazy loading for data access.
+#' @slot dataset arrow::Dataset. Cached dataset used for queries.
 #' 
 #' @name ParquetNeuroVec-class
 #' @export
@@ -21,8 +22,9 @@ setClass("ParquetNeuroVec",
   contains = "NeuroVec",
   slots = c(
     parquet_path = "character",
-    metadata = "list", 
-    lazy = "logical"
+    metadata = "list",
+    lazy = "logical",
+    dataset = "ANY"
   )
 )
 
@@ -103,12 +105,15 @@ ParquetNeuroVec <- function(parquet_path, lazy = TRUE) {
   }
   
   # Create the object using new()
+  ds <- arrow::open_dataset(parquet_path)
+
   obj <- new("ParquetNeuroVec",
     space = neuro_space,
     label = basename(parquet_path),
     parquet_path = parquet_path,
     metadata = metadata,
-    lazy = lazy
+    lazy = lazy,
+    dataset = ds
   )
   
   return(obj)
@@ -141,8 +146,8 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "integer"),
     }
     
     # Query the specific voxel using its Z-order index
-    z_idx <- compute_zindex(x_coord, y_coord, z_coord)
-    data_table <- arrow::open_dataset(x@parquet_path) |>
+    z_idx <- compute_zindex_cpp(x_coord, y_coord, z_coord)
+    data_table <- x@dataset |>
       dplyr::filter(zindex == z_idx) |>
       dplyr::collect()
     

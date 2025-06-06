@@ -42,6 +42,7 @@ test_that("ParquetNeuroVec class creation and basic functionality", {
   expect_true(file.exists(pvec@parquet_path))
   expect_equal(pvec@parquet_path, parquet_path)
   expect_true(pvec@lazy)
+  expect_true(inherits(pvec@dataset, "Dataset"))
   
   # Test metadata access
   expect_type(pvec@metadata, "list")
