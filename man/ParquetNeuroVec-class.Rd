@@ -22,5 +22,7 @@ array-like access to 4D fMRI data stored in Parquet format with spatial indexing
 \item{\code{metadata}}{list. Cached metadata from the Parquet file.}
 
 \item{\code{lazy}}{logical. Whether to use lazy loading for data access.}
+
+\item{\code{dataset}}{arrow::Dataset. Cached dataset used for queries.}
 }}
 
