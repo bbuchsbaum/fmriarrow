@@ -269,21 +269,23 @@ setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "integer", j =
     y_range <- validate_coord(j, "y", dims[2])
     z_range <- validate_coord(k, "z", dims[3])
 
-    data_table <- read_fpar_coords_roi(
-      x@parquet_path,
-      x_range = x_range - 1, # to 0-based
-      y_range = y_range - 1,
-      z_range = z_range - 1,
-      columns = "bold"
-    )
-    
-    if (nrow(data_table) == 0) {
+    ds <- arrow::open_dataset(x@parquet_path)
+
+    summary_tbl <- ds |>
+      dplyr::filter(
+        x >= x_range[1] - 1L & x <= x_range[2] - 1L,
+        y >= y_range[1] - 1L & y <= y_range[2] - 1L,
+        z >= z_range[1] - 1L & z <= z_range[2] - 1L
+      ) |>
+      dplyr::summarise(mean_bold = arrow::mean(bold)) |>
+      dplyr::collect()
+
+    if (nrow(summary_tbl) == 0) {
       return(rep(0, x@metadata$acquisition_properties$timepoint_count))
     }
-    
-    # Compute mean time series across all voxels in the ROI
-    bold_matrix <- do.call(rbind, data_table$bold)
-    colMeans(bold_matrix)
+
+    result <- summary_tbl$mean_bold[[1]]
+    as.numeric(result)
   }
 )
 
