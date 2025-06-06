@@ -210,23 +210,20 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
       stop("Coordinates out of bounds")
     }
 
-    # Create coordinate ranges for efficient querying
-    x_range <- range(coords_0based[, 1])
-    y_range <- range(coords_0based[, 2])
-    z_range <- range(coords_0based[, 3])
+    # Compute zindices for requested coordinates
+    z_indices <- compute_zindex(
+      coords_0based[, 1],
+      coords_0based[, 2],
+      coords_0based[, 3]
+    )
 
-    data_table <- read_fpar_coords_roi(
-      x@parquet_path,
-      x_range = x_range,
-      y_range = y_range,
-      z_range = z_range,
-      exact = TRUE,
-      columns = c("x", "y", "z", "bold")
-    ) |> dplyr::collect()
+    # Filter cached dataset by zindex
+    data_table <- arrow::open_dataset(x@parquet_path) |>
+      dplyr::filter(zindex %in% z_indices) |>
+      dplyr::select(zindex, bold) |>
+      dplyr::collect()
 
-    table_keys <- paste(data_table$x, data_table$y, data_table$z, sep = "_")
-    query_keys <- paste(coords_0based[, 1], coords_0based[, 2], coords_0based[, 3], sep = "_")
-    match_idx <- match(query_keys, table_keys)
+    match_idx <- match(z_indices, data_table$zindex)
 
     result_matrix <- matrix(NA_real_,
                            nrow = x@metadata$acquisition_properties$timepoint_count,
