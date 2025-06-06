@@ -348,43 +348,63 @@ setMethod("show", "ParquetNeuroVec",
   }
 )
 
-.load_data_to_array <- function(x) {
-  data_table <- arrow::read_parquet(x@parquet_path)
-  
-  # Ensure order for correct reconstruction
-  data_table <- dplyr::arrange(data_table, zindex)
-  
-  bold_matrix <- do.call(rbind, data_table$bold)
-  
-  arr <- array(NA_real_, dim = dim(x@space))
-  
-  # Get 0-based coordinates and convert to 1-based for array indexing
-  coords_matrix <- as.matrix(data_table[, c("x", "y", "z")]) + 1
-  
-  for (idx in seq_len(nrow(coords_matrix))) {
-    arr[
-      coords_matrix[idx, 1],
-      coords_matrix[idx, 2],
-      coords_matrix[idx, 3],
-    ] <- bold_matrix[idx, ]
+.load_data_to_array <- function(x, i_idx = NULL, j_idx = NULL,
+                                k_idx = NULL, t_idx = NULL) {
+  dims <- dim(x)
+
+  if (is.null(i_idx)) i_idx <- seq_len(dims[1])
+  if (is.null(j_idx)) j_idx <- seq_len(dims[2])
+  if (is.null(k_idx)) k_idx <- seq_len(dims[3])
+  if (is.null(t_idx)) t_idx <- seq_len(dims[4])
+
+  data_table <- read_fpar_coords_roi(
+    x@parquet_path,
+    x_range = range(i_idx) - 1L,
+    y_range = range(j_idx) - 1L,
+    z_range = range(k_idx) - 1L,
+    columns = c("x", "y", "z", "bold"),
+    exact = TRUE
+  )
+
+  df <- as.data.frame(data_table)
+  arr <- array(NA_real_,
+               dim = c(length(i_idx), length(j_idx),
+                        length(k_idx), length(t_idx)))
+
+  if (nrow(df) > 0) {
+    for (idx in seq_len(nrow(df))) {
+      xi <- match(df$x[idx] + 1L, i_idx)
+      yj <- match(df$y[idx] + 1L, j_idx)
+      zk <- match(df$z[idx] + 1L, k_idx)
+
+      if (!is.na(xi) && !is.na(yj) && !is.na(zk)) {
+        arr[xi, yj, zk, ] <- df$bold[[idx]][t_idx]
+      }
+    }
   }
-  
+
   arr
 }
 
 #' @export
 setMethod("[", signature(x = "ParquetNeuroVec"),
   function(x, i, j, k, ..., drop = TRUE) {
-    # This is a simple but inefficient implementation that loads all data.
-    data_arr <- .load_data_to_array(x)
-    
-    # Handle the case where no indices are provided, returning the full array
-    if (missing(i) && missing(j) && missing(k) && missing(..1)) {
-       return(data_arr)
+    dims <- dim(x)
+
+    dots <- list(...)
+    t_idx <- if (length(dots) >= 1) dots[[1]] else seq_len(dims[4])
+
+    i_idx <- if (missing(i)) seq_len(dims[1]) else i
+    j_idx <- if (missing(j)) seq_len(dims[2]) else j
+    k_idx <- if (missing(k)) seq_len(dims[3]) else k
+
+    data_arr <- .load_data_to_array(x, i_idx, j_idx, k_idx, t_idx)
+
+    if (drop) {
+      return(drop(data_arr))
+    } else {
+      return(data_arr)
     }
-    
-    # Pass subsetting to the underlying array
-    data_arr[i, j, k, ..., drop = drop]
   }
 )
 
