@@ -190,14 +190,17 @@ test_that("ParquetNeuroVec array subsetting", {
   subset_data <- pvec[1:2, 1:2, 1, 1:2, drop = FALSE]
   expect_true(is.array(subset_data))
   expect_equal(dim(subset_data), c(2, 2, 1, 2))
-  
+  expect_equal(subset_data, neuro_vec[1:2, 1:2, 1, 1:2, drop = FALSE])
+
   # Test subsetting a single value
   expect_true(is.numeric(pvec[1, 1, 1, 1]))
-  
+  expect_equal(pvec[1,1,1,1], neuro_vec[1,1,1,1])
+
   # Test subsetting a time series
   ts_data <- pvec[1, 1, 1, , drop = FALSE]
   expect_true(is.array(ts_data))
   expect_equal(dim(ts_data), c(1,1,1,4))
+  expect_equal(ts_data, neuro_vec[1,1,1,, drop = FALSE])
   
   # Cleanup
   unlink(parquet_path)
@@ -311,14 +314,17 @@ test_that("ParquetNeuroVec can be subset like an array", {
   subset_data <- pvec[1:2, 1:2, 1, 1:2, drop = FALSE]
   expect_true(is.array(subset_data))
   expect_equal(dim(subset_data), c(2, 2, 1, 2))
-  
+  expect_equal(subset_data, neuro_vec[1:2, 1:2, 1, 1:2, drop = FALSE])
+
   # Test subsetting a single value
   expect_true(is.numeric(pvec[1, 1, 1, 1]))
-  
+  expect_equal(pvec[1,1,1,1], neuro_vec[1,1,1,1])
+
   # Test subsetting a time series
   ts_data <- pvec[1, 1, 1, , drop = FALSE]
   expect_true(is.array(ts_data))
   expect_equal(dim(ts_data), c(1,1,1,5))
+  expect_equal(ts_data, neuro_vec[1,1,1,, drop = FALSE])
   
   # Cleanup
   unlink(parquet_path)
