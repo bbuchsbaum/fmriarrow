@@ -1,0 +1,8 @@
+^\.claude$
+^\.omc$
+^data-raw$
+^examples$
+^fmriarrow-prd\.json$
+^\.rcmdcheck_result\.rds$
+^.*\.Rcheck$
+^\.Rproj\.user$

@@ -220,20 +220,20 @@ setMethod("series", signature(x = "ParquetNeuroVec", i = "matrix"),
   }
 )
 
+#' Extract ROI Time Series Based on a Bounding Box
+#'
+#' @param x ParquetNeuroVec object
+#' @param i x-coordinate range or single coordinate
+#' @param j y-coordinate range or single coordinate
+#' @param k z-coordinate range or single coordinate
+#' @return numeric vector. Average time series across the ROI
 #' @rdname series_roi_bbox-methods
 #' @export
 setGeneric("series_roi_bbox", function(x, i, j, k) {
   standardGeneric("series_roi_bbox")
 })
 
-#' Extract ROI Time Series from ParquetNeuroVec based on a bounding box
-#' 
-#' @param x ParquetNeuroVec object
-#' @param i integer. x-coordinate range or single coordinate
-#' @param j integer. y-coordinate range or single coordinate
-#' @param k integer. z-coordinate range or single coordinate
-#' 
-#' @return numeric vector. Average time series across the ROI
+#' @rdname series_roi_bbox-methods
 #' @export
 setMethod("series_roi_bbox", signature(x = "ParquetNeuroVec", i = "integer", j = "integer", k = "integer"),
   function(x, i, j, k) {
@@ -293,6 +293,12 @@ setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "matrix"),
   }
 )
 
+#' Extract ROI Time Series from a Single Coordinate
+#'
+#' @param x ParquetNeuroVec object
+#' @param i numeric vector of length 3 (x, y, z 1-based coordinates)
+#' @param ... additional arguments (ignored)
+#' @return numeric vector of time series values
 #' @export
 setMethod("series_roi", signature(x = "ParquetNeuroVec", i = "numeric"),
   function(x, i, ...) {
@@ -396,6 +402,13 @@ setMethod("show", "ParquetNeuroVec",
   arr
 }
 
+#' Subset a ParquetNeuroVec
+#'
+#' @param x ParquetNeuroVec object
+#' @param i,j,k spatial indices
+#' @param ... additional arguments; the first is treated as a time index
+#' @param drop logical. Whether to drop dimensions of length 1
+#' @return An array of extracted values
 #' @export
 setMethod("[", signature(x = "ParquetNeuroVec"),
   function(x, i, j, k, ..., drop = TRUE) {
@@ -481,6 +494,10 @@ setMethod("concat", signature(x = "ParquetNeuroVec", y = "ParquetNeuroVec"),
     ParquetNeuroVec(output_parquet_path)
 })
 
+#' Convert ParquetNeuroVec to a Matrix
+#'
+#' @param x ParquetNeuroVec object
+#' @return A numeric matrix with rows as voxels and columns as time points
 #' @export
 setMethod("as.matrix", signature(x = "ParquetNeuroVec"),
   function(x) {
@@ -500,6 +517,11 @@ setMethod("as.matrix", signature(x = "ParquetNeuroVec"),
   }
 )
 
+#' Subset ParquetNeuroVec Along Time Dimension
+#'
+#' @param x ParquetNeuroVec object
+#' @param i integer vector of time indices to extract
+#' @return A new ParquetNeuroVec with the selected time points
 #' @export
 #' @rdname sub_vector-methods
 setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "integer"),
@@ -525,6 +547,9 @@ setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "integer"),
   }
 )
 
+#' @param x ParquetNeuroVec object
+#' @param i numeric vector of time indices (coerced to integer)
+#' @return A new ParquetNeuroVec with the selected time points
 #' @export
 #' @rdname sub_vector-methods
 setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "numeric"),
@@ -534,10 +559,12 @@ setMethod("sub_vector", signature(x = "ParquetNeuroVec", i = "numeric"),
 )
 
 #' Convert ParquetNeuroVec to NeuroVec
-#' 
+#'
+#' @name ParquetNeuroVec-coerce
 #' @param from ParquetNeuroVec object to convert
 #' @return A NeuroVec object
-#' @importFrom methods setAs
+#' @importFrom methods setAs new show
+#' @keywords internal
 setAs("ParquetNeuroVec", "NeuroVec", function(from) {
   # Load all data into a 4D array
   data_arr <- from[]

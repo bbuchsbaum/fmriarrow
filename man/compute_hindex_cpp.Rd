@@ -19,8 +19,4 @@ Numeric or character vector of Hilbert indices
 \description{
 Compute 3D Hilbert curve indices
 }
-\examples{
-compute_hindex_cpp(IntegerVector::create(0,1,2),
-                   IntegerVector::create(0,1,2),
-                   IntegerVector::create(0,1,2), 4)
-}
+\keyword{internal}

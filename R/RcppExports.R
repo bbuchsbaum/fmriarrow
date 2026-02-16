@@ -11,10 +11,7 @@ compute_zindex_cpp <- function(x, y, z, max_coord_bits = 10L) {
 #' @param nbits Number of bits per dimension (1-21)
 #' @param as_character Return indices as character strings to preserve precision
 #' @return Numeric or character vector of Hilbert indices
-#' @examples
-#' compute_hindex_cpp(IntegerVector::create(0,1,2),
-#'                    IntegerVector::create(0,1,2),
-#'                    IntegerVector::create(0,1,2), 4)
+#' @keywords internal
 compute_hindex_cpp <- function(x, y, z, nbits, as_character = FALSE) {
     .Call(`_fmriarrow_compute_hindex_cpp`, x, y, z, nbits, as_character)
 }

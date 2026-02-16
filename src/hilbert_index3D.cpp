@@ -141,10 +141,7 @@ void hindex_to_point(uint64_t h, int nbits, uint32_t &x, uint32_t &y, uint32_t &
 //' @param nbits Number of bits per dimension (1-21)
 //' @param as_character Return indices as character strings to preserve precision
 //' @return Numeric or character vector of Hilbert indices
-//' @examples
-//' compute_hindex_cpp(IntegerVector::create(0,1,2),
-//'                    IntegerVector::create(0,1,2),
-//'                    IntegerVector::create(0,1,2), 4)
+//' @keywords internal
 // [[Rcpp::export]]
 SEXP compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z,
                         int nbits, bool as_character = false) {

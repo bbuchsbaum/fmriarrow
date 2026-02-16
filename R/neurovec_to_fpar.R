@@ -114,13 +114,17 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   }
 
   # Extract all BOLD time series as a matrix (voxels x time)
-  bold_matrix <- neuroim2::series(neuro_vec_obj, coord_matrix)
-
-  if (!is.matrix(bold_matrix)) {
-    bold_matrix <- matrix(bold_matrix, nrow=1)
+  # Handle single-voxel volumes specially (neuroim2 bug with 1x1x1 dims)
+  if (n_vox == 1L) {
+    bold_vec <- as.numeric(neuro_vec_obj[1, 1, 1, ])
+    bold_matrix <- matrix(bold_vec, nrow = 1)
+  } else {
+    bold_matrix <- neuroim2::series(neuro_vec_obj, coord_matrix)
+    if (!is.matrix(bold_matrix)) {
+      bold_matrix <- matrix(bold_matrix, nrow = 1)
+    }
+    bold_matrix <- t(bold_matrix)
   }
-
-  bold_matrix <- t(bold_matrix)
 
   # Optionally filter out voxels where the entire BOLD series is zero or all-NA
   if (filter_empty) {
