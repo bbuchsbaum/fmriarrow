@@ -1,5 +1,4 @@
 library(testthat)
-devtools::load_all()
 
 context("coords_to_zindex_range")
 

@@ -1,5 +1,4 @@
 library(testthat)
-devtools::load_all()
 
 test_that("input must be a NeuroVec", {
   expect_error(neurovec_to_fpar(list(), "file.parquet", "sub01"))

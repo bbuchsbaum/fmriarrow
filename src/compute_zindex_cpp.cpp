@@ -20,10 +20,9 @@ IntegerVector compute_zindex_cpp(IntegerVector x, IntegerVector y, IntegerVector
   for (int i = 0; i < n; ++i) {
     unsigned int val = 0;
     for (int b = 0; b < max_coord_bits; ++b) {
-      unsigned int mask = 1u << b;
-      val |= (x[i] & mask) << (3 * b);
-      val |= (y[i] & mask) << (3 * b + 1);
-      val |= (z[i] & mask) << (3 * b + 2);
+      val |= ((x[i] >> b) & 1u) << (3 * b);
+      val |= ((y[i] >> b) & 1u) << (3 * b + 1);
+      val |= ((z[i] >> b) & 1u) << (3 * b + 2);
     }
     res[i] = (int)val;
   }

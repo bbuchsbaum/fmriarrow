@@ -2,7 +2,6 @@ library(testthat)
 library(neuroim2)
 library(arrow)
 library(dplyr)
-devtools::load_all()
 
 context("read_fpar_coords_roi")
 

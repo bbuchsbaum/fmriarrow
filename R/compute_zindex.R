@@ -19,6 +19,10 @@
 #' @export
 compute_zindex <- function(x, y, z, max_coord_bits = 10) {
   max_coord_bits <- validate_max_coord_bits(max_coord_bits)
+  if (max_coord_bits > 10L) {
+    warning("max_coord_bits > 10 may produce Morton codes exceeding signed int32 range. ",
+            "Consider using compute_hindex() for large coordinate spaces.")
+  }
   if (length(x) != length(y) || length(y) != length(z)) {
     stop("x, y and z must have the same length")
   }
@@ -28,12 +32,6 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
   if (any(x < 0 | y < 0 | z < 0)) {
     stop("coordinates must be non-negative")
   }
-  if (!is.numeric(max_coord_bits) || length(max_coord_bits) != 1 ||
-      is.na(max_coord_bits) || max_coord_bits != as.integer(max_coord_bits) ||
-      max_coord_bits <= 0 || max_coord_bits >= 31) {
-    stop("max_coord_bits must be a single positive integer less than 31")
-  }
-  max_coord_bits <- as.integer(max_coord_bits)
   limit <- bitwShiftL(1L, max_coord_bits)
   if (any(x >= limit | y >= limit | z >= limit)) {
     stop("coordinates exceed range defined by max_coord_bits")
@@ -56,16 +54,6 @@ compute_zindex <- function(x, y, z, max_coord_bits = 10) {
     res <- res + yi * (2^(3 * i + 1))
     res <- res + zi * (2^(3 * i + 2))
   }
-  
-  as.integer(res)
-}
 
-validate_max_coord_bits <- function(max_coord_bits) {
-  if (!is.numeric(max_coord_bits) || length(max_coord_bits) != 1 ||
-      is.na(max_coord_bits) || max_coord_bits != as.integer(max_coord_bits) ||
-      max_coord_bits <= 0 || max_coord_bits >= 31) {
-    stop("max_coord_bits must be a single positive integer less than 31")
-  }
-  max_coord_bits <- as.integer(max_coord_bits)
-  max_coord_bits
+  as.integer(res)
 }

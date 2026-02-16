@@ -1,5 +1,4 @@
 library(testthat)
-devtools::load_all()
 
 context("compute_hindex")
 
@@ -97,8 +96,42 @@ test_that("adjacency within octants is preserved", {
 test_that("input validation works", {
   expect_error(compute_hindex(0, 0, 1024, max_coord_bits = 10), "coordinates exceed range")
   expect_error(compute_hindex(-1, 0, 0, max_coord_bits = 10), "coordinates must be non-negative")
-  expect_error(compute_hindex(1, 2, "c"), "coordinates must be numeric")
-  expect_error(compute_hindex(1, 2, c(3,4)), "must have the same length")
+  expect_error(compute_hindex(1, 2, "c", max_coord_bits = 10), "coordinates must be numeric")
+  expect_error(compute_hindex(1, 2, c(3,4), max_coord_bits = 10), "must have the same length")
+})
+
+test_that("Hilbert index round-trip preserves coordinates", {
+  # Test with nbits = 4 (small but exercises full algorithm)
+  coords <- expand.grid(x = 0:3, y = 0:3, z = 0:3)
+
+  h_indices <- compute_hindex(coords$x, coords$y, coords$z, max_coord_bits = 4)
+
+  # All indices should be unique
+  expect_equal(length(unique(h_indices)), nrow(coords))
+
+  # Round-trip: indices -> coordinates should recover originals
+  recovered <- compute_hindex_inverse(h_indices, max_coord_bits = 4)
+  expect_equal(recovered$x, coords$x)
+  expect_equal(recovered$y, coords$y)
+  expect_equal(recovered$z, coords$z)
+})
+
+test_that("Hilbert indices are unique for larger coordinates", {
+  # Test with nbits = 8
+  set.seed(42)
+  n <- 500
+  coords <- data.frame(
+    x = sample(0:255, n, replace = TRUE),
+    y = sample(0:255, n, replace = TRUE),
+    z = sample(0:255, n, replace = TRUE)
+  )
+  # Remove duplicates
+  coords <- unique(coords)
+
+  h_indices <- compute_hindex(coords$x, coords$y, coords$z, max_coord_bits = 8)
+
+  # All unique coordinates should produce unique indices
+  expect_equal(length(unique(h_indices)), nrow(coords))
 })
 
 

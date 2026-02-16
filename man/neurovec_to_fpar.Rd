@@ -13,6 +13,7 @@ neurovec_to_fpar(
   run_id = NULL,
   reference_space = NULL,
   repetition_time = NULL,
+  filter_empty = FALSE,
   ...
 )
 }
@@ -32,6 +33,8 @@ neurovec_to_fpar(
 \item{reference_space}{Optional reference space identifier (e.g., "MNI152NLin2009cAsym").}
 
 \item{repetition_time}{Optional repetition time in seconds.}
+
+\item{filter_empty}{Logical; if TRUE, filters out voxels where the entire BOLD series is zero or all-NA. Default is FALSE.}
 
 \item{...}{Additional arguments reserved for future extensions.}
 }

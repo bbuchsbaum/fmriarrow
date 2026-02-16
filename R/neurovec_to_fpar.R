@@ -17,6 +17,7 @@
 #' @param run_id Optional run identifier.
 #' @param reference_space Optional reference space identifier (e.g., "MNI152NLin2009cAsym").
 #' @param repetition_time Optional repetition time in seconds.
+#' @param filter_empty Logical; if TRUE, filters out voxels where the entire BOLD series is zero or all-NA. Default is FALSE.
 #' @param ... Additional arguments reserved for future extensions.
 #'
 #' @return A list containing the extracted `NeuroSpace`, the voxel data and
@@ -27,7 +28,8 @@
 neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
                              subject_id, session_id = NULL,
                              task_id = NULL, run_id = NULL,
-                             reference_space = NULL, repetition_time = NULL, ...) {
+                             reference_space = NULL, repetition_time = NULL,
+                             filter_empty = FALSE, ...) {
   # Input validation
   if (!inherits(neuro_vec_obj, "NeuroVec")) {
     stop("neuro_vec_obj must inherit from 'NeuroVec'")
@@ -71,10 +73,13 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   }
 
   # Construct metadata structure per Sprint 2 specification
+  index_type <- if (max_coord_bits <= 10) "morton" else "hilbert"
   metadata <- extract_neurospace_metadata(
     neuro_vec_obj,
     reference_space = reference_space,
-    repetition_time = repetition_time
+    repetition_time = repetition_time,
+    max_coord_bits = max_coord_bits,
+    index_type = index_type
   )
 
   # Initialize voxel iteration
@@ -95,19 +100,17 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   if (max_coord_bits <= 10) {
     # Morton indices for all voxels
     zindex <- compute_zindex(x, y, z, max_coord_bits)
+    if (any(is.na(zindex))) {
+      stop("Z-index overflow: max_coord_bits=", max_coord_bits,
+           " produces indices exceeding integer range. ",
+           "Consider using Hilbert indexing for large volumes.")
+    }
   } else {
     # Use Hilbert indices for large volumes (> 1024 voxels per axis)
     warning("Dimensions exceed 1024 voxels. Using Hilbert curve indexing.")
-    # Hilbert indices return numeric (64-bit), convert to integer for consistency
     hindex <- compute_hindex(x, y, z, max_coord_bits)
-    # Scale down to fit in 32-bit integer range if needed
-    max_hindex <- max(hindex)
-    if (max_hindex > .Machine$integer.max) {
-      # Scale indices to fit in 32-bit range while preserving order
-      zindex <- as.integer(hindex / (max_hindex / .Machine$integer.max))
-    } else {
-      zindex <- as.integer(hindex)
-    }
+    # Rank-based mapping preserves uniqueness and ordering within int32 range
+    zindex <- as.integer(rank(hindex, ties.method = "first") - 1L)
   }
 
   # Extract all BOLD time series as a matrix (voxels x time)
@@ -118,7 +121,22 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   }
 
   bold_matrix <- t(bold_matrix)
-  
+
+  # Optionally filter out voxels where the entire BOLD series is zero or all-NA
+  if (filter_empty) {
+    row_all_zero <- apply(bold_matrix, 1, function(row) all(row == 0 | is.na(row)))
+    keep <- !row_all_zero
+    if (sum(keep) == 0) {
+      stop("All voxels are empty after filtering")
+    }
+    bold_matrix <- bold_matrix[keep, , drop = FALSE]
+    x <- x[keep]
+    y <- y[keep]
+    z <- z[keep]
+    zindex <- zindex[keep]
+    n_vox <- sum(keep)
+  }
+
   # Track min/max values for data integrity
   min_value <- min(bold_matrix, na.rm = TRUE)
   max_value <- max(bold_matrix, na.rm = TRUE)
@@ -186,6 +204,16 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
   # Convert the dplyr query back to a Table
   arrow_tbl_final <- dplyr::collect(arrow_tbl_sorted, as_data_frame = FALSE)
 
+  # Guard against partial files on write failure
+  .write_success <- FALSE
+  on.exit({
+    if (!.write_success) {
+      if (file.exists(output_parquet_path)) unlink(output_parquet_path)
+      metadata_path <- paste0(tools::file_path_sans_ext(output_parquet_path), "_metadata.json")
+      if (file.exists(metadata_path)) unlink(metadata_path)
+    }
+  }, add = TRUE)
+
   # Write Parquet file
   arrow::write_parquet(
     arrow_tbl_final,
@@ -199,6 +227,9 @@ neurovec_to_fpar <- function(neuro_vec_obj, output_parquet_path,
     metadata_path <- paste0(tools::file_path_sans_ext(output_parquet_path), "_metadata.json")
     writeLines(metadata_json, metadata_path)
   }
+
+  # Disarm cleanup guard on success
+  .write_success <- TRUE
 
   # Return diagnostic information (primarily for testing)
   list(

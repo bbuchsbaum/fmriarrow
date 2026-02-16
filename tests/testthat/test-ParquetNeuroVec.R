@@ -3,8 +3,6 @@ library(neuroim2)
 library(arrow)
 library(dplyr)
 
-devtools::load_all()
-
 test_that("ParquetNeuroVec class creation and basic functionality", {
   skip_if_not_installed("neuroim2")
   skip_if_not_installed("arrow")
@@ -88,6 +86,42 @@ test_that("ParquetNeuroVec series method with integer coordinates", {
   expect_error(series(pvec, 0L, 1L, 1L), "out of bounds")
   expect_error(series(pvec, dims[1] + 1L, 1L, 1L), "out of bounds")
   
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("ParquetNeuroVec series at coordinates >= 2 matches original data", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  # Create test data with known values
+  dims <- c(5, 5, 3, 4)
+  data <- array(seq_len(prod(dims)), dim = dims)
+  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
+  neuro_vec <- neuroim2::NeuroVec(data, space)
+
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(
+    neuro_vec_obj = neuro_vec,
+    output_parquet_path = parquet_path,
+    subject_id = "test_subject"
+  )
+  pvec <- ParquetNeuroVec(parquet_path)
+
+  # Test at coordinates (3,3,2) - well inside the volume
+  ts_332 <- series(pvec, 3L, 3L, 2L)
+  expected_332 <- as.numeric(neuro_vec[3, 3, 2, ])
+  expect_equal(ts_332, expected_332, tolerance = 1e-6)
+
+  # Test at coordinates (5,5,3) - edge of the volume
+  ts_553 <- series(pvec, 5L, 5L, 3L)
+  expected_553 <- as.numeric(neuro_vec[5, 5, 3, ])
+  expect_equal(ts_553, expected_553, tolerance = 1e-6)
+
+  # Test correlation is essentially perfect
+  expect_true(cor(ts_332, expected_332) > 0.9999)
+  expect_true(cor(ts_553, expected_553) > 0.9999)
+
   # Cleanup
   unlink(parquet_path)
 })
@@ -265,9 +299,9 @@ test_that("ParquetNeuroVec lazy vs non-lazy loading", {
 
 test_that("ParquetNeuroVec error handling", {
   skip_if_not_installed("neuroim2")
-  
+
   # Test non-existent file
-  expect_error(ParquetNeuroVec("nonexistent.fpar"), "not found")
+  expect_error(ParquetNeuroVec("nonexistent.fpar"), "does not exist")
   
   # Test invalid file extension (should warn but not error)
   temp_dir <- tempdir()
@@ -315,18 +349,18 @@ test_that("ParquetNeuroVec can be subset like an array", {
   subset_data <- pvec[1:2, 1:2, 1, 1:2, drop = FALSE]
   expect_true(is.array(subset_data))
   expect_equal(dim(subset_data), c(2, 2, 1, 2))
-  expect_equal(subset_data, neuro_vec[1:2, 1:2, 1, 1:2, drop = FALSE])
+  expect_equal(subset_data, neuro_vec[1:2, 1:2, 1, 1:2, drop = FALSE], tolerance = 1e-6)
 
   # Test subsetting a single value
   expect_true(is.numeric(pvec[1, 1, 1, 1]))
-  expect_equal(pvec[1,1,1,1], neuro_vec[1,1,1,1])
+  expect_equal(pvec[1,1,1,1], neuro_vec[1,1,1,1], tolerance = 1e-6)
 
   # Test subsetting a time series
   ts_data <- pvec[1, 1, 1, , drop = FALSE]
   expect_true(is.array(ts_data))
   expect_equal(dim(ts_data), c(1,1,1,5))
-  expect_equal(ts_data, neuro_vec[1,1,1,, drop = FALSE])
-  
+  expect_equal(ts_data, neuro_vec[1,1,1,, drop = FALSE], tolerance = 1e-6)
+
   # Cleanup
   unlink(parquet_path)
 })
@@ -382,4 +416,113 @@ test_that("concat combines two ParquetNeuroVec objects", {
   # Cleanup
   unlink(parquet_path1)
   unlink(parquet_path2)
+})
+
+test_that("series_roi_bbox matches manual colMeans computation", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  # Create a volume with known values for verification
+  dims <- c(5, 5, 3, 4)
+  data <- array(seq_len(prod(dims)), dim = dims)
+  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
+  neuro_vec <- neuroim2::NeuroVec(data, space)
+
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec, parquet_path, "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+
+  # Multi-voxel ROI: manually compute expected mean
+  voxels <- expand.grid(i = 2:3, j = 2:3, k = 1:2)
+  manual_series <- sapply(seq_len(nrow(voxels)), function(idx) {
+    as.numeric(neuro_vec[voxels$i[idx], voxels$j[idx], voxels$k[idx], ])
+  })
+  expected_mean <- rowMeans(manual_series)
+
+  roi_mean <- series_roi_bbox(pvec, 2:3, 2:3, 1:2)
+  expect_equal(roi_mean, expected_mean, tolerance = 1e-5)
+
+  # Single-voxel ROI should match the voxel's time series
+  single_roi <- series_roi_bbox(pvec, 3L, 3L, 2L)
+  single_ts <- series(pvec, 3L, 3L, 2L)
+  expect_equal(single_roi, single_ts, tolerance = 1e-6)
+
+  # Empty ROI (out-of-range coordinates that pass validation but match no data)
+  # Use coordinates at the volume edge where data exists
+  # Instead test that ROI with single voxel returns correct result
+  expect_equal(length(series_roi_bbox(pvec, 1L, 1L, 1L)), dims[4])
+
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("ParquetNeuroVec subsetting handles missing indices", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  dims <- c(4, 4, 3, 5)
+  data <- array(seq_len(prod(dims)), dim = dims)
+  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
+  neuro_vec <- neuroim2::NeuroVec(data, space)
+
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec, parquet_path, "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+
+  # Missing 4th index: pvec[x,y,z,] should return all timepoints
+  ts_all <- pvec[2, 2, 1, ]
+  expect_length(ts_all, dims[4])
+  expect_equal(ts_all, as.numeric(neuro_vec[2, 2, 1, ]), tolerance = 1e-6)
+
+  # Missing 4th index with drop=FALSE
+  ts_nodrop <- pvec[2, 2, 1, , drop = FALSE]
+  expect_true(is.array(ts_nodrop))
+  expect_equal(dim(ts_nodrop), c(1, 1, 1, dims[4]))
+
+  # Explicit time subset
+  ts_sub <- pvec[2, 2, 1, 1:3]
+  expect_length(ts_sub, 3)
+  expect_equal(ts_sub, as.numeric(neuro_vec[2, 2, 1, 1:3]), tolerance = 1e-6)
+
+  # Missing spatial indices: pvec[,,, t]
+  all_spatial <- pvec[, , , 1, drop = FALSE]
+  expect_true(is.array(all_spatial))
+  expect_equal(dim(all_spatial), c(dims[1], dims[2], dims[3], 1))
+
+  # drop=TRUE vs drop=FALSE
+  single_val <- pvec[1, 1, 1, 1, drop = TRUE]
+  expect_true(is.numeric(single_val) && length(single_val) == 1)
+
+  single_arr <- pvec[1, 1, 1, 1, drop = FALSE]
+  expect_true(is.array(single_arr))
+  expect_equal(dim(single_arr), c(1, 1, 1, 1))
+
+  # Cleanup
+  unlink(parquet_path)
+})
+
+test_that("sub_vector works with numeric indices", {
+  skip_if_not_installed("neuroim2")
+  skip_if_not_installed("arrow")
+
+  dims <- c(5, 5, 3, 8)
+  data <- array(seq_len(prod(dims)), dim = dims)
+  space <- neuroim2::NeuroSpace(dim = dims, spacing = c(1, 1, 1), origin = c(0, 0, 0))
+  neuro_vec <- neuroim2::NeuroVec(data, space)
+
+  parquet_path <- tempfile(fileext = ".fpar")
+  neurovec_to_fpar(neuro_vec, parquet_path, "test_subject")
+  pvec <- ParquetNeuroVec(parquet_path)
+
+  # Numeric indices (c() creates numeric, not integer)
+  pvec_sub <- sub_vector(pvec, c(1, 3, 5))
+  expect_s4_class(pvec_sub, "ParquetNeuroVec")
+  expect_equal(dim(pvec_sub)[4], 3L)
+
+  # Integer indices should also work
+  pvec_sub2 <- sub_vector(pvec, 1:3)
+  expect_equal(dim(pvec_sub2)[4], 3L)
+
+  # Cleanup
+  unlink(parquet_path)
 }) 

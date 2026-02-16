@@ -1,3 +1,6 @@
+#' @importFrom rlang `%||%`
+NULL
+
 #' Internal validation helpers
 #'
 #' These functions are not exported and used internally to validate
@@ -36,8 +39,8 @@ validate_max_coord_bits <- function(max_coord_bits) {
   if (int_val != max_coord_bits) {
     stop("max_coord_bits must be an integer value")
   }
-  if (int_val <= 0L) {
-    stop("max_coord_bits must be > 0")
+  if (int_val <= 0L || int_val >= 31L) {
+    stop("max_coord_bits must be a positive integer less than 31")
   }
   int_val
 }
@@ -114,9 +117,3 @@ validate_coord_bounds <- function(ranges, max_coord) {
   invisible(TRUE)
 }
 
-#' Null-coalescing operator
-#' @param x First value
-#' @param y Second value (returned if x is NULL)
-`%||%` <- function(x, y) {
-  if (is.null(x)) y else x
-}

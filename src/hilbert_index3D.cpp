@@ -52,11 +52,11 @@ inline uint32_t trailing_set_bits(uint32_t i) {
 // Right rotate a 3-bit value
 inline uint32_t right_rotate(uint32_t val, int n) {
     n %= N_DIMS;
-    if (n == 0) return val;
+    if (n == 0) return val & ((1u << N_DIMS) - 1);
     uint32_t mask = (1u << n) - 1;
     uint32_t right_part = val & mask;
     uint32_t left_part = val >> n;
-    return left_part | (right_part << (N_DIMS - n));
+    return (left_part | (right_part << (N_DIMS - n))) & ((1u << N_DIMS) - 1);
 }
 
 // Hamilton's lookup tables for the 3D Hilbert curve
@@ -166,36 +166,42 @@ SEXP compute_hindex_cpp(IntegerVector x, IntegerVector y, IntegerVector z,
   }
 
   if (as_character) {
-    CharacterVector out(n);
+    std::vector<std::string> str_results(n);
 #ifdef _OPENMP
     if (n > 10000) {
 #pragma omp parallel for
       for (int i = 0; i < n; ++i) {
         uint64_t idx = point_to_hindex(x[i], y[i], z[i], nbits);
-        out[i] = std::to_string(idx);
+        str_results[i] = std::to_string(idx);
       }
     } else
 #endif
     {
       for (int i = 0; i < n; ++i) {
         uint64_t idx = point_to_hindex(x[i], y[i], z[i], nbits);
-        out[i] = std::to_string(idx);
+        str_results[i] = std::to_string(idx);
       }
+    }
+    // Copy to R CharacterVector sequentially (thread-safe)
+    CharacterVector out(n);
+    for (int i = 0; i < n; ++i) {
+      out[i] = str_results[i];
     }
     return out;
   } else {
     NumericVector out(n);
+    double* out_ptr = REAL(out);
 #ifdef _OPENMP
     if (n > 10000) {
 #pragma omp parallel for
       for (int i = 0; i < n; ++i) {
-        out[i] = static_cast<double>(point_to_hindex(x[i], y[i], z[i], nbits));
+        out_ptr[i] = static_cast<double>(point_to_hindex(x[i], y[i], z[i], nbits));
       }
     } else
 #endif
     {
       for (int i = 0; i < n; ++i) {
-        out[i] = static_cast<double>(point_to_hindex(x[i], y[i], z[i], nbits));
+        out_ptr[i] = static_cast<double>(point_to_hindex(x[i], y[i], z[i], nbits));
       }
     }
     return out;

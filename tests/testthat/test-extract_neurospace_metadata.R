@@ -1,8 +1,6 @@
 library(testthat)
 library(neuroim2)
 
-devtools::load_all()
-
 context("extract_neurospace_metadata")
 
 # These tests require the neuroim2 package for NeuroVec creation

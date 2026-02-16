@@ -4,15 +4,17 @@
 \alias{compute_hindex}
 \title{Compute 3D Hilbert curve indices}
 \usage{
-compute_hindex(x, y, z, max_coord_bits)
+compute_hindex(x, y, z, max_coord_bits, as_character = FALSE)
 }
 \arguments{
 \item{x, y, z}{Integer vectors of coordinates}
 
 \item{max_coord_bits}{Number of bits per dimension (e.g., 10 for a 1024x1024x1024 cube)}
+
+\item{as_character}{Return indices as character strings to preserve precision (default FALSE)}
 }
 \value{
-A numeric vector of Hilbert indices.
+A numeric or character vector of Hilbert indices.
 }
 \description{
 Compute 3D Hilbert curve indices

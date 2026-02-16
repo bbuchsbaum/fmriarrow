@@ -2,7 +2,6 @@ library(testthat)
 library(neuroim2)
 library(arrow)
 library(jsonlite)
-devtools::load_all()
 
 context("read_fpar_metadata")
 
@@ -43,8 +42,14 @@ test_that("metadata retrieved when sidecar missing", {
     file.remove(sidecar_path)
   }
   expect_false(file.exists(sidecar_path))
-  
+
   md2 <- read_fpar_metadata(tmp)
   expect_equal(md2$spatial_properties$reference_space, "TESTSPACE")
   expect_equal(md2$acquisition_properties$timepoint_count, 3L)
+})
+
+test_that("read_fpar_metadata rejects invalid paths", {
+  expect_error(read_fpar_metadata("nonexistent_file.fpar"), "does not exist")
+  expect_error(read_fpar_metadata(123), "must be a single string")
+  expect_error(read_fpar_metadata(c("a.fpar", "b.fpar")), "must be a single string")
 })

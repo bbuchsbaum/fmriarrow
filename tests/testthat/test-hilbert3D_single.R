@@ -1,7 +1,5 @@
 library(testthat)
 
-devtools::load_all()
-
 context("hilbert3D_single and round-trip consistency")
 
 # Test 1: round-trip for full grids across multiple nbits

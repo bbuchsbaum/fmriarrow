@@ -14,7 +14,9 @@
 #' @noRd
 extract_neurospace_metadata <- function(neuro_vec_obj,
                                         reference_space = NULL,
-                                        repetition_time = NULL) {
+                                        repetition_time = NULL,
+                                        max_coord_bits = 10L,
+                                        index_type = "morton") {
   s <- neuroim2::space(neuro_vec_obj)
   spacing_vec <- neuroim2::spacing(s)
   # Recycle or truncate to always return a three-element spacing vector
@@ -40,6 +42,10 @@ extract_neurospace_metadata <- function(neuro_vec_obj,
     data_integrity = list(
       voxel_count = as.integer(prod(dim(s)[1:3])),
       bold_value_range = c(NA_real_, NA_real_)
+    ),
+    indexing = list(
+      index_type = index_type,
+      max_coord_bits = as.integer(max_coord_bits)
     )
   )
 }
